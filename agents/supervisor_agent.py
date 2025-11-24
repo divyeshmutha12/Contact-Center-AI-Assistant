@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph_supervisor import create_supervisor
 from agents.data_extraction_agent import create_data_agent
+from utils.prompt_loader import load_prompt
 import warnings
 
 # Suppress MCP ping warnings
@@ -150,15 +151,7 @@ async def get_supervisor_agent():
     model = get_model()
     data_agent = await get_data_agent()
 
-    SYSTEM_PROMPT = """
-You are a routing supervisor.
-DO NOT access MongoDB yourself.
-
-RULES:
-1. If the user request requires database access → forward it EXACTLY to the data agent.
-2. Do NOT rewrite, modify, or summarize DB queries.
-3. For non-database queries, answer normally using the supervisor model.
-"""
+    SYSTEM_PROMPT = SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
     supervisor_graph = create_supervisor(
         agents=[],
