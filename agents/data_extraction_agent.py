@@ -28,5 +28,10 @@ async def create_data_agent(model: ChatOpenAI):
         name="data_extraction_agent"
     )
 
+    # CRITICAL: Keep MCP client reference alive to prevent connection closure
+    # The tools have internal references to the client's SSE stream.
+    # If the client is garbage collected, the stream closes and causes ClosedResourceError.
+    agent._mcp_client = mcp_client
+
     logger.info("Data extraction agent successfully created.")
     return agent
