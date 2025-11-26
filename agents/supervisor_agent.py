@@ -83,16 +83,38 @@ _checkpointer = MemorySaver()
 # ---------------------------------------------------------
 # 🔥 SMART DB QUERY DETECTION
 # ---------------------------------------------------------
-def is_db_query(text: str) -> bool:
+
+# Track last routing decision per thread (for follow-up detection)
+_last_route_was_db = {}
+
+
+def is_db_query(text: str, thread_id: str = None) -> bool:
     """
     Smart detection for routing queries to MongoDB.
     Works even when user never mentions words like "find", "query", "collection".
+    Also detects follow-up questions that reference previous DB results.
     """
 
     if not text:
         return False
 
     t = text.lower()
+
+    # 0️⃣ FOLLOW-UP DETECTION — if user references previous results
+    # Words like "those", "them", "these", "it", "that" after a DB query
+    follow_up_indicators = [
+        "those", "them", "these", "that", "the same", "which ones",
+        "of them", "of those", "from those", "from them", "among them",
+        "out of", "breakdown", "split", "categorize", "group by",
+    ]
+
+    # Check if this looks like a follow-up AND we previously routed to DB
+    if thread_id and _last_route_was_db.get(thread_id, False):
+        if any(indicator in t for indicator in follow_up_indicators):
+            return True
+        # Also catch questions starting with "how many of" without explicit entity
+        if re.search(r"how many (of|are|were)\b", t):
+            return True
 
     # 1️⃣ Detect dates → strong indicator of querying call logs / tickets
     date_patterns = [
@@ -122,6 +144,11 @@ def is_db_query(text: str) -> bool:
     if any(w in t for w in ["call log", "call logs", "customer", "customers"]):
         return True
 
+    # 6️⃣ Direction queries (incoming/outgoing)
+    directions = ["incoming", "outgoing", "inbound", "outbound"]
+    if any(d in t for d in directions):
+        return True
+
     return False
 
 
@@ -141,7 +168,8 @@ async def get_data_agent():
     global _data_agent
     if _data_agent is None:
         logger.info("Creating data extraction agent...")
-        _data_agent = await create_data_agent(get_model())
+        # Pass the shared checkpointer so data agent also has conversation memory
+        _data_agent = await create_data_agent(get_model(), checkpointer=_checkpointer)
     return _data_agent
 
 
@@ -195,13 +223,23 @@ async def get_supervisor_agent():
             else:
                 user_text = str(message)
 
-            # SMART DETECTION — NEW LOGIC
-            requires_db = is_db_query(user_text)
+            # Extract thread_id from config for follow-up detection
+            thread_id = None
+            if config and "configurable" in config:
+                thread_id = config["configurable"].get("thread_id")
+
+            # SMART DETECTION — with follow-up awareness
+            requires_db = is_db_query(user_text, thread_id=thread_id)
+
+            # Track this routing decision for future follow-up detection
+            if thread_id:
+                _last_route_was_db[thread_id] = requires_db
 
             try:
                 if requires_db:
                     logger.info("Routing → DATA AGENT (detected DB query)")
-                    return await self._data_agent.ainvoke(message)
+                    # Pass config so data agent can use conversation memory
+                    return await self._data_agent.ainvoke(message, config=config)
 
                 else:
                     logger.info("Routing → SUPERVISOR MODEL (non-DB query)")
@@ -229,8 +267,8 @@ async def get_supervisor_agent():
 
                             logger.info(f"Retrying with fallback {fm}")
                             if requires_db:
-                                return await self._data_agent.ainvoke(message)
-                            return await self._supervisor.ainvoke(message)
+                                return await self._data_agent.ainvoke(message, config=config)
+                            return await self._supervisor.ainvoke(message, config=config)
 
                         except Exception:
                             continue

@@ -45,7 +45,7 @@ def run_async(coro):
     """Run an async coroutine in the persistent event loop."""
     loop = get_event_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=120)  # 2 minute timeout
+    return future.result()  # No timeout - wait until complete
 
 
 def initialize_supervisor():
@@ -141,13 +141,6 @@ def chat():
             "reply": reply,
             "status": "success"
         })
-
-    except TimeoutError:
-        logger.error("Request timed out")
-        return jsonify({
-            "error": "Request timed out. Please try again.",
-            "status": "error"
-        }), 504
 
     except Exception as e:
         logger.error(f"Chat error: {str(e)}")
