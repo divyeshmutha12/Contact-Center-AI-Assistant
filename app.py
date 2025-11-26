@@ -1,3 +1,4 @@
+
 """
 Contact Center Agent - Flask API Server
 
@@ -67,7 +68,7 @@ def run_async(coro):
     """Run an async coroutine in the persistent event loop."""
     loop = get_event_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=120)  # 2 minute timeout
+    return future.result()  # 2 minute timeout
 
 
 def initialize_supervisor():
