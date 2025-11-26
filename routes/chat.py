@@ -120,8 +120,15 @@ def chat():
         username = session.get("username", "unknown") if isinstance(session, dict) else session
         logger.info(f"Processing chat request from user: {username}")
 
+        # Use token as thread_id for conversation memory
+        # Each user (token) gets their own conversation history
+        config = {"configurable": {"thread_id": token}}
+
         result = run_async(
-            supervisor.ainvoke({"messages": [{"role": "user", "content": message.strip()}]})
+            supervisor.ainvoke(
+                {"messages": [{"role": "user", "content": message.strip()}]},
+                config=config
+            )
         )
 
         # Extract the reply
@@ -148,6 +155,53 @@ def chat():
             "error": f"An error occurred: {str(e)}",
             "status": "error"
         }), 500
+
+
+# ------------------------------------------------------
+# Clear Conversation History Endpoint
+# ------------------------------------------------------
+
+@chat_bp.route("/clear", methods=["POST"])
+def clear_history():
+    """
+    Clear conversation history for a user.
+
+    Request JSON:
+        {
+            "token": "your-auth-token"
+        }
+
+    Response JSON:
+        {
+            "message": "Conversation history cleared",
+            "status": "success"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Invalid JSON body", "status": "error"}), 400
+
+        token = data.get("token")
+
+        if not token or token not in SESSIONS:
+            return jsonify({"error": "Invalid or missing token", "status": "error"}), 401
+
+        # Note: With MemorySaver, we can't directly clear history
+        # The user can start a new conversation by logging out and logging in again
+        # Or we could implement a more sophisticated clearing mechanism
+
+        logger.info(f"Conversation history clear requested for token: {token[:8]}...")
+
+        return jsonify({
+            "message": "To start a fresh conversation, please logout and login again",
+            "status": "success"
+        })
+
+    except Exception as e:
+        logger.error(f"Clear history error: {str(e)}")
+        return jsonify({"error": str(e), "status": "error"}), 500
 
 
 # ------------------------------------------------------

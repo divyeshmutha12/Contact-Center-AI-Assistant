@@ -4,6 +4,7 @@ import re
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph_supervisor import create_supervisor
+from langgraph.checkpoint.memory import MemorySaver
 from agents.data_extraction_agent import create_data_agent
 from utils.prompt_loader import load_prompt
 import warnings
@@ -73,6 +74,10 @@ FALLBACK_MODELS = [
 _model = None
 _data_agent = None
 _supervisor_agent = None
+
+# Checkpointer for conversation memory (short-term memory)
+# This enables the bot to remember previous messages in the same conversation
+_checkpointer = MemorySaver()
 
 
 # ---------------------------------------------------------
@@ -157,9 +162,9 @@ async def get_supervisor_agent():
         agents=[],
         model=model,
         system_prompt=SYSTEM_PROMPT
-    ).compile()
+    ).compile(checkpointer=_checkpointer)
 
-    logger.info("Supervisor agent built successfully")
+    logger.info("Supervisor agent built successfully with conversation memory")
 
     async def _rotate_to_model(new_model: str):
         global model_name, _model, _data_agent, _supervisor_agent
@@ -216,7 +221,7 @@ async def get_supervisor_agent():
                             new_data_agent = await get_data_agent()
                             new_supervisor = create_supervisor(
                                 agents=[], model=new_model, system_prompt=SYSTEM_PROMPT
-                            ).compile()
+                            ).compile(checkpointer=_checkpointer)
 
                             self._model = new_model
                             self._data_agent = new_data_agent
