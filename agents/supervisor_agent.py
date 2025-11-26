@@ -128,7 +128,7 @@ def get_model():
     global _model
     if _model is None:
         logger.info(f"Creating OpenAI model: {model_name}")
-        _model = ChatOpenAI(model=model_name, temperature=temperature)
+        _model = ChatOpenAI(model=model_name )
     return _model
 
 
@@ -156,7 +156,7 @@ async def get_supervisor_agent():
     supervisor_graph = create_supervisor(
         agents=[],
         model=model,
-        system_prompt=SYSTEM_PROMPT
+        prompt=SYSTEM_PROMPT
     ).compile()
 
     logger.info("Supervisor agent built successfully")
@@ -215,7 +215,7 @@ async def get_supervisor_agent():
                             new_model = get_model()
                             new_data_agent = await get_data_agent()
                             new_supervisor = create_supervisor(
-                                agents=[], model=new_model, system_prompt=SYSTEM_PROMPT
+                                agents=[], model=new_model, prompt=SYSTEM_PROMPT
                             ).compile()
 
                             self._model = new_model

@@ -21,6 +21,7 @@ async def create_data_agent(model: ChatOpenAI):
 
     SYSTEM_PROMPT = SYSTEM_PROMPT = load_prompt("prompts/data_agent_system.txt")
 
+
     agent = create_agent(
         model=model,
         tools=tools,
