@@ -15,7 +15,7 @@ export function LangGraphLogoSVG({
       alt="Azalio Logo"
       width={width}
       height={height}
-      className={className}
+      className={`object-contain ${className || ""}`}
       priority
     />
   );

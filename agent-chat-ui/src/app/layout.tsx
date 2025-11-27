@@ -13,6 +13,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Azalio Agent",
   description: "Azalio AI-Powered Assistant",
+  icons: {
+    icon: "/azalio_logo.png",
+    shortcut: "/azalio_logo.png",
+    apple: "/azalio_logo.png",
+  },
 };
 
 export default function RootLayout({

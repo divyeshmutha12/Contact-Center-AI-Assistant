@@ -10,7 +10,6 @@ import {
   LogOut,
   Trash2,
   Loader2,
-  User,
   AlertCircle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -137,8 +136,8 @@ export function ChatWindow() {
         {/* Sidebar Footer - User Info */}
         <div className="border-t p-3">
           <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-              <User className="h-4 w-4 text-blue-600" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-white font-semibold text-sm">
+              {auth.username ? auth.username.charAt(0).toUpperCase() : "U"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="truncate text-sm font-medium text-gray-700">
@@ -170,7 +169,7 @@ export function ChatWindow() {
               alt={APP_NAME}
               width={40}
               height={40}
-              className="rounded-full"
+              className="object-contain"
             />
             <div>
               <h1 className="text-lg font-semibold text-[#2563eb]">{APP_NAME}</h1>
@@ -208,9 +207,9 @@ export function ChatWindow() {
                   <Image
                     src="/azalio_logo.png"
                     alt={APP_NAME}
-                    width={64}
-                    height={64}
-                    className="rounded-full"
+                    width={80}
+                    height={80}
+                    className="object-contain"
                   />
                 </div>
                 <h2 className="mb-2 text-xl font-semibold text-[#2563eb]">
@@ -242,13 +241,13 @@ export function ChatWindow() {
                   )}
                 >
                   {message.role === "assistant" && (
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full overflow-hidden">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white border shadow-sm overflow-hidden">
                       <Image
                         src="/azalio_logo.png"
                         alt="AI"
-                        width={32}
-                        height={22}
-                        className="rounded-full"
+                        width={24}
+                        height={24}
+                        className="object-contain"
                       />
                     </div>
                   )}
@@ -315,8 +314,8 @@ export function ChatWindow() {
                   </div>
 
                   {message.role === "user" && (
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200">
-                      <User className="h-4 w-4 text-gray-600" />
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#2563eb] text-white font-semibold text-sm">
+                      {auth.username ? auth.username.charAt(0).toUpperCase() : "U"}
                     </div>
                   )}
                 </div>
@@ -326,13 +325,13 @@ export function ChatWindow() {
             {/* Loading indicator */}
             {isLoading && (
               <div className="flex gap-3">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full overflow-hidden">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white border shadow-sm overflow-hidden">
                   <Image
                     src="/azalio_logo.png"
                     alt="AI"
-                    width={32}
-                    height={32}
-                    className="rounded-full"
+                    width={24}
+                    height={24}
+                    className="object-contain"
                   />
                 </div>
                 <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">

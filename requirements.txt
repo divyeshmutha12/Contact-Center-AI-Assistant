@@ -12,6 +12,7 @@ motor>=3.3.0
 
 # MCP (Model Context Protocol)
 mcp>=0.1.0
+langchain-mcp-adapters>=0.0.1
 
 # Data Processing
 pydantic>=2.5.0

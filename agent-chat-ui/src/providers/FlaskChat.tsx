@@ -46,25 +46,12 @@ const FlaskChatContext = createContext<FlaskChatContextType | undefined>(
 const API_URL = process.env.NEXT_PUBLIC_FLASK_API_URL || "http://localhost:8000";
 
 export function FlaskChatProvider({ children }: { children: ReactNode }) {
-  // Auth state
-  const [auth, setAuth] = useState<AuthState>(() => {
-    // Check localStorage for existing session
-    if (typeof window !== "undefined") {
-      const savedToken = localStorage.getItem("flask_token");
-      const savedUsername = localStorage.getItem("flask_username");
-      if (savedToken && savedUsername) {
-        return {
-          isAuthenticated: true,
-          token: savedToken,
-          username: savedUsername,
-        };
-      }
-    }
-    return {
-      isAuthenticated: false,
-      token: null,
-      username: null,
-    };
+  // Auth state - always start as not authenticated
+  // User must click "Sign In" to login, no auto-login from localStorage
+  const [auth, setAuth] = useState<AuthState>({
+    isAuthenticated: false,
+    token: null,
+    username: null,
   });
 
   // Chat state

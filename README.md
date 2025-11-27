@@ -1,26 +1,30 @@
 # Contact Center Agent System
 
-An AI-powered agent system for querying and analyzing contact center customer data using MongoDB MCP Server, LangGraph, and OpenAI GPT-4.
+An AI-powered agent system for querying and analyzing contact center data using MongoDB MCP Server, LangGraph, and OpenAI GPT-5-mini.
 
 ## Architecture
 
 ```
-User Query
+User Query (CLI or REST API)
     ↓
-Supervisor Agent (LangGraph + GPT-4)
+Flask API (app.py) ─── or ─── CLI (main.py)
+    ↓
+Supervisor Agent (LangGraph + GPT-5-mini)
     ↓
 Data Extraction Agent
     ↓
-MongoDB MCP Server ← → MongoDB (fallback: Direct PyMongo)
+MongoDB MCP Server (port 4000)
+    ↓
+MongoDB Database (ccs_dev)
 ```
 
 ## Components
 
 ### 1. **Supervisor Agent**
 - Built using LangChain's `create_agent` pattern
-- Uses OpenAI GPT-4o-mini for natural language understanding
+- Uses OpenAI GPT-5-mini for natural language understanding
 - Automatic tool calling and routing
-- Provides 4 MongoDB tools for querying customer data
+- Routes DB queries to Data Extraction Agent
 
 ### 2. **Data Extraction Agent**
 - Primary: Connects to MongoDB via MCP Server
@@ -88,14 +92,12 @@ copy .env.example .env
 2. Edit `.env` and add your OpenAI API key and model:
 ```
 OPENAI_API_KEY=sk-your-actual-key-here
-OPENAI_MODEL=gpt-4o-mini
-MONGODB_CONNECTION_STRING=mongodb://localhost:27017/contact_center_db
+OPENAI_MODEL=gpt-5-mini
+OPENAI_TEMPERATURE=0.3
+MDB_MCP_CONNECTION_STRING=mongodb://localhost:27017/ccs_dev
+MDB_MCP_READ_ONLY=true
+MONGODB_DATABASE=ccs_dev
 ```
-
-**Note:** You can easily switch between models by changing `OPENAI_MODEL`:
-- `gpt-4o-mini` (recommended for cost/speed)
-- `gpt-4o` (more capable)
-- `gpt-4-turbo` (maximum capability)
 
 ### Step 5: Start MongoDB
 
@@ -120,19 +122,120 @@ python data/generate_mock_data.py
 ```
 
 This will:
-- Generate 100 sample customer records
-- Create the `contact_center_db` database
-- Create the `customers` collection
+- Generate sample call records
+- Create the `ccs_dev` database
+- Create collections for calls, agents, customers
 - Insert sample data
 - Create indexes for better performance
 
 ## Usage
 
-### Run the Agent System
+### Option 1: Run CLI Agent (Interactive)
 
 ```bash
 python main.py
 ```
+
+### Option 2: Run REST API Server
+
+```bash
+python app.py
+```
+
+This starts the Flask API server at `http://localhost:8000`
+
+---
+
+## REST API Documentation
+
+### Prerequisites for API
+
+Before starting the API server, ensure:
+1. MongoDB is running on `localhost:27017`
+2. MCP Server is running:
+   ```bash
+   npx -y mongodb-mcp-server --connectionString "mongodb://localhost:27017/ccs_dev" --readOnly --port 4000
+   ```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API info and available endpoints |
+| POST | `/auth/login` | Login and get auth token |
+| POST | `/auth/logout` | Logout and invalidate token |
+| POST | `/auth/session` | Get session info |
+| POST | `/chat/` | Send message to AI agent |
+| GET | `/chat/health` | Health check |
+
+### Authentication Flow
+
+#### 1. Login
+```bash
+POST /auth/login
+Content-Type: application/json
+
+{
+    "username": "demo",
+    "password": "demo123"
+}
+```
+
+Response:
+```json
+{
+    "token": "uuid-token-here",
+    "username": "demo",
+    "status": "success"
+}
+```
+
+#### 2. Chat with Agent
+```bash
+POST /chat/
+Content-Type: application/json
+
+{
+    "token": "your-token-here",
+    "message": "How many calls were made today?"
+}
+```
+
+Response:
+```json
+{
+    "reply": "There are 821 calls recorded today.",
+    "status": "success"
+}
+```
+
+#### 3. Logout
+```bash
+POST /auth/logout
+Content-Type: application/json
+
+{
+    "token": "your-token-here"
+}
+```
+
+### Testing with Postman
+
+1. **Login**: POST to `http://localhost:8000/auth/login` with username/password
+2. **Copy the token** from response
+3. **Chat**: POST to `http://localhost:8000/chat/` with token and message
+4. **Logout**: POST to `http://localhost:8000/auth/logout` with token
+
+### Sample Queries
+
+| Query Type | Example |
+|------------|---------|
+| Count | "How many calls were made today?" |
+| Filter | "Show me calls for agent manas" |
+| List | "List all failed calls" |
+| General | "What is a contact center?" |
+
+---
 
 ### Example Queries
 
@@ -165,8 +268,13 @@ Once the system starts, you can ask natural language queries:
 Contact_Center_Project/
 ├── agents/
 │   ├── __init__.py
-│   ├── supervisor_agent.py        # LangGraph supervisor with GPT-4
-│   └── data_extraction_agent.py   # MCP client with PyMongo fallback
+│   ├── supervisor_agent.py        # LangGraph supervisor with GPT-5-mini
+│   ├── data_extraction_agent.py   # Data extraction agent
+│   └── mongo_mcp_client.py        # MongoDB MCP client wrapper
+├── routes/
+│   ├── __init__.py
+│   ├── auth.py                    # Authentication endpoints
+│   └── chat.py                    # Chat endpoints
 ├── config/
 │   └── mcp_servers.json           # MCP server configuration
 ├── data/
@@ -176,6 +284,7 @@ Contact_Center_Project/
 ├── .env                            # Your actual API keys (not in git)
 ├── requirements.txt                # Python dependencies
 ├── main.py                         # CLI entry point
+├── app.py                          # Flask REST API server
 └── README.md                       # This file
 ```
 
@@ -184,21 +293,21 @@ Contact_Center_Project/
 ### 1. Query Processing Flow
 
 ```
-User enters query
+User enters query (via CLI or REST API)
     ↓
-Supervisor Agent analyzes intent using GPT-4
+Supervisor Agent analyzes intent using GPT-5-mini
     ↓
-Determines task type (query/aggregate/analyze)
+Determines if it's a DB query or general question
     ↓
-Routes to Data Extraction Agent
+Routes to Data Extraction Agent (if DB query)
     ↓
 Data Extraction Agent queries MongoDB via MCP
     ↓
 Results returned to Supervisor
     ↓
-Supervisor analyzes and summarizes with GPT-4
+Supervisor formats response with GPT-5-mini
     ↓
-Final response displayed to user
+Final response returned to user
 ```
 
 ### 2. MCP Connection with Fallback
@@ -316,7 +425,7 @@ The official MongoDB MCP Server provides these tools:
 
 3. Verify connection string in `.env`:
    ```
-   MONGODB_CONNECTION_STRING=mongodb://localhost:27017/contact_center_db
+   MDB_MCP_CONNECTION_STRING=mongodb://localhost:27017/ccs_dev
    ```
 
 ### MCP Server Issues
@@ -379,7 +488,7 @@ python agents/supervisor_agent.py
 
 This tests:
 - LangGraph workflow
-- OpenAI GPT-4 integration
+- OpenAI GPT-5-mini integration
 - Full agent orchestration
 
 ### Test 3: Full System
@@ -402,21 +511,20 @@ All configuration is managed through the `.env` file:
 ```bash
 # OpenAI Configuration
 OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini        # Change to gpt-4o or gpt-4-turbo for different capabilities
+OPENAI_MODEL=gpt-5-mini
+OPENAI_TEMPERATURE=0.3
 
-# MongoDB Configuration
-MONGODB_CONNECTION_STRING=mongodb://localhost:27017/contact_center_db
-
-# MCP Server Configuration (Optional)
-MCP_SERVER_PATH=npx
-MCP_READ_ONLY=true
+# MongoDB MCP Server config
+MDB_MCP_CONNECTION_STRING=mongodb://localhost:27017/ccs_dev
+MDB_MCP_READ_ONLY=true
+MONGODB_DATABASE=ccs_dev
 ```
 
 **Benefits of configuration via .env:**
-- ✅ No code changes needed to switch models
-- ✅ Easy to use different settings per environment
-- ✅ Keep secrets out of code
-- ✅ Follow industry best practices
+- No code changes needed to switch models
+- Easy to use different settings per environment
+- Keep secrets out of code
+- Follow industry best practices
 
 ### MCP Server Configuration
 
@@ -430,7 +538,7 @@ Edit `config/mcp_servers.json`:
       "command": "npx",
       "args": ["-y", "mongodb-mcp-server@latest", "--readOnly"],
       "env": {
-        "MDB_MCP_CONNECTION_STRING": "mongodb://localhost:27017/contact_center_db"
+        "MDB_MCP_CONNECTION_STRING": "mongodb://localhost:27017/ccs_dev"
       }
     }
   }
@@ -449,20 +557,25 @@ To allow data modifications (not recommended for testing):
 
 ## Next Steps
 
-### Phase 1: Current System ✅
+### Phase 1: Core System ✅
 - Supervisor Agent
 - Data Extraction Agent
 - MongoDB MCP integration
 - Backend CLI testing
 
-### Phase 2: Future Enhancements
+### Phase 2: REST API ✅
+- [x] Flask REST API server
+- [x] Token-based authentication
+- [x] Chat endpoint with AI agent
+- [x] Health check endpoint
+- [x] CORS enabled for frontend integration
+
+### Phase 3: Future Enhancements
+- [ ] Add conversation memory (multi-turn chat)
+- [ ] Create web-based frontend
 - [ ] Add more specialized agents (Analytics Agent, Report Agent)
 - [ ] Implement caching for frequent queries
-- [ ] Add query history and session management
-- [ ] Build REST API wrapper
-- [ ] Create web-based frontend
-- [ ] Add authentication and user management
-- [ ] Implement real-time notifications
+- [ ] Add real-time notifications (WebSocket)
 - [ ] Add data visualization
 
 ## Contributing
@@ -484,8 +597,9 @@ For help or issues:
 ---
 
 **Built with:**
-- 🤖 OpenAI GPT-4o-mini
-- 🗄️ MongoDB MCP Server
-- 🔀 LangChain Agents (with create_agent)
-- 🐍 Python 3.8+
-- 📦 Node.js 20+
+- OpenAI GPT-5-mini
+- MongoDB MCP Server
+- LangGraph + LangChain
+- Flask REST API
+- Python 3.8+
+- Node.js 20+

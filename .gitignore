@@ -49,6 +49,12 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Screenshots (temporary test images)
+*.png
+*.jpg
+*.jpeg
+*.gif
+
 # MCP
 .mcp/
 

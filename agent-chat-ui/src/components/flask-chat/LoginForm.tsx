@@ -45,9 +45,9 @@ export function LoginForm() {
             <Image
               src="/azalio_logo.png"
               alt={APP_NAME}
-              width={50}
-              height={50}
-              className="mx-auto mb-4 rounded-full"
+              width={80}
+              height={80}
+              className="mx-auto mb-4 object-contain"
             />
             <h1 className="text-2xl font-bold text-gray-900">
               {APP_NAME}
