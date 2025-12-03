@@ -19,9 +19,205 @@ import {
   Check,
 } from "lucide-react";
 import { MarkdownText } from "@/components/thread/markdown-text";
+import { ChevronDown, ChevronUp, Download } from "lucide-react";
 
 // App name - change this to customize
 const APP_NAME = "Azalio Agent";
+
+// Helper function to detect if content is a JSON array
+function tryParseJsonArray(content: string): any[] | null {
+  try {
+    const trimmed = content.trim();
+
+    // First try: exact match (content is pure JSON)
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object") {
+        return parsed;
+      }
+    }
+
+    // Second try: extract JSON array from within text
+    const jsonMatch = trimmed.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object") {
+        return parsed;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to format value for display and CSV export
+// Handles MongoDB date objects like {"$date": "2025-09-08T07:24:57.786Z"}
+function formatDisplayValue(val: any): string {
+  if (val === null || val === undefined) {
+    return "";
+  }
+  if (typeof val === "object" && val !== null) {
+    if (val.$date) {
+      return val.$date; // Extract the date string from MongoDB format
+    }
+    // For other objects, JSON stringify them
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
+// API URL for exports
+const API_URL = process.env.NEXT_PUBLIC_FLASK_API_URL || "http://localhost:8000";
+
+// Component to render JSON array as a table
+function JsonTableView({ data, token }: { data: any[]; token: string | null }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const INITIAL_ROWS = 5;
+
+  if (data.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 italic">
+        No records found for this query.
+      </div>
+    );
+  }
+
+  // Get all unique keys from all objects
+  const columns = Array.from(
+    new Set(data.flatMap((item) => Object.keys(item)))
+  );
+
+  const displayedData = isExpanded ? data : data.slice(0, INITIAL_ROWS);
+  const hasMore = data.length > INITIAL_ROWS;
+
+  // Export to Excel function (calls backend API)
+  const exportToExcel = async () => {
+    if (!token) {
+      alert("Please login to export");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const response = await fetch(`${API_URL}/chat/export-excel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: token,
+          data: data,
+          filename: `report_${new Date().toISOString().split("T")[0]}`,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Export failed");
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `report_${new Date().toISOString().split("T")[0]}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Excel export error:", error);
+      alert("Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="w-full">
+      {/* Header with record count and export button */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-gray-500">
+          {data.length} record{data.length !== 1 ? "s" : ""} found
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportToExcel}
+          disabled={isExporting}
+          className="h-7 text-xs gap-1"
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Exporting...
+            </>
+          ) : (
+            <>
+              <Download className="h-3 w-3" />
+              Export Excel
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              {columns.map((col) => (
+                <th
+                  key={col}
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap"
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {displayedData.map((row, idx) => (
+              <tr key={idx} className="hover:bg-gray-50">
+                {columns.map((col) => (
+                  <td
+                    key={col}
+                    className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-xs truncate"
+                    title={formatDisplayValue(row[col]) || "-"}
+                  >
+                    {row[col] !== null && row[col] !== undefined
+                      ? formatDisplayValue(row[col])
+                      : "-"}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Show more/less button */}
+      {hasMore && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 flex items-center gap-1 text-sm text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp className="h-4 w-4" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-4 w-4" />
+              Show all {data.length} records
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function ChatWindow() {
   const {
@@ -37,8 +233,21 @@ export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Copy message to clipboard
   const handleCopyMessage = async (messageId: string, content: string) => {
@@ -133,19 +342,43 @@ export function ChatWindow() {
           )}
         </div>
 
-        {/* Sidebar Footer - User Info */}
-        <div className="border-t p-3">
-          <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2">
+        {/* Sidebar Footer - User Info with Dropdown */}
+        <div className="border-t p-3 relative" ref={profileMenuRef}>
+          {/* Profile Menu Dropdown */}
+          {showProfileMenu && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-lg shadow-lg border overflow-hidden">
+              <button
+                onClick={() => {
+                  logout();
+                  setShowProfileMenu(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </div>
+          )}
+
+          {/* Profile Button */}
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="w-full flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2 hover:bg-gray-100 transition-colors"
+          >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-white font-semibold text-sm">
               {auth.username ? auth.username.charAt(0).toUpperCase() : "U"}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <p className="truncate text-sm font-medium text-gray-700">
                 {auth.username}
               </p>
               <p className="text-xs text-gray-400">Logged in</p>
             </div>
-          </div>
+            <ChevronUp className={cn(
+              "h-4 w-4 text-gray-400 transition-transform",
+              showProfileMenu ? "rotate-180" : ""
+            )} />
+          </button>
         </div>
       </div>
 
@@ -185,15 +418,6 @@ export function ChatWindow() {
               title="Clear chat"
             >
               <Trash2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={logout}
-              className="text-red-600 hover:bg-red-50 hover:text-red-700"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
             </Button>
           </div>
         </header>
@@ -236,7 +460,7 @@ export function ChatWindow() {
                 <div
                   key={message.id}
                   className={cn(
-                    "flex gap-3 group",
+                    "flex gap-3 group w-full",
                     message.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
@@ -254,8 +478,8 @@ export function ChatWindow() {
 
                   <div
                     className={cn(
-                      "flex flex-col max-w-[80%]",
-                      message.role === "user" ? "items-end" : "items-start"
+                      "flex flex-col",
+                      message.role === "user" ? "items-end max-w-[80%]" : "items-start w-full"
                     )}
                   >
                     <div
@@ -263,13 +487,21 @@ export function ChatWindow() {
                         "rounded-2xl px-4 py-3",
                         message.role === "user"
                           ? "bg-[#2563eb] text-white shadow-sm"
-                          : "bg-white shadow-sm border"
+                          : "bg-white shadow-sm border w-full"
                       )}
                     >
                       {message.role === "assistant" ? (
-                        <div className="prose prose-sm max-w-none">
-                          <MarkdownText>{message.content}</MarkdownText>
-                        </div>
+                        (() => {
+                          const jsonData = tryParseJsonArray(message.content);
+                          if (jsonData) {
+                            return <JsonTableView data={jsonData} token={auth.token} />;
+                          }
+                          return (
+                            <div className="prose prose-sm max-w-none">
+                              <MarkdownText>{message.content}</MarkdownText>
+                            </div>
+                          );
+                        })()
                       ) : (
                         <p className="whitespace-pre-wrap">{message.content}</p>
                       )}

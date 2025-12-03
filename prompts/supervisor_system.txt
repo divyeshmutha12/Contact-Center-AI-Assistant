@@ -31,3 +31,11 @@ ROUTING RULES:
    - If data_extraction_agent returns a JSON array (for reports), pass it through unchanged
    - Do NOT add extra commentary or formatting to JSON responses
    - Let the raw JSON reach the user for report queries
+
+6. CRITICAL - Response passthrough rules:
+   - When data_extraction_agent returns a JSON array starting with "[",
+     your response MUST be ONLY that JSON array
+   - Do NOT add ANY text before or after the JSON
+   - Do NOT say "Here is the data" or "Here is the report" or similar
+   - Do NOT ask follow-up questions after returning report data
+   - Just return the raw JSON array exactly as received from the agent

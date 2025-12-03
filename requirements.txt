@@ -26,3 +26,7 @@ typing-extensions>=4.9.0
 # Flask Backend
 flask>=3.0.0
 flask-cors>=4.0.0
+
+# Excel Export
+pandas
+openpyxl

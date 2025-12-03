@@ -1,13 +1,76 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 import asyncio
 import threading
 import logging
+import re
+import json
+import io
+import pandas as pd
+from datetime import datetime
 
 from routes.auth import SESSIONS
 
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/chat")
+
+
+def extract_best_response(messages: list) -> str:
+    """
+    Pick the best response from messages.
+
+    Logic:
+    - If JSON array has "_id" → it's raw MongoDB data (Supervisor's response) → SKIP
+    - If JSON array has NO "_id" → it's formatted data (Data Agent's response) → USE THIS
+    - For non-JSON responses, use the last non-empty AI message
+    """
+    from langchain_core.messages import AIMessage
+
+    formatted_response = None  # JSON without _id (Data Agent)
+    last_text_response = None  # Fallback for non-report queries
+
+    for msg in reversed(messages):
+        if not isinstance(msg, AIMessage):
+            continue
+
+        content = getattr(msg, 'content', '')
+        if not content or not content.strip():
+            continue
+
+        # Skip transfer messages
+        if 'transferring' in content.lower():
+            continue
+
+        # Check if it's a JSON array
+        if content.strip().startswith('['):
+            try:
+                data = json.loads(content)
+                if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+                    # Check if it has _id (raw MongoDB) or not (formatted)
+                    if '_id' not in data[0]:
+                        # This is the Data Agent's formatted response - USE THIS
+                        formatted_response = content
+                        logger.info("Found formatted response (no _id) from Data Agent")
+                        break  # Best match found
+            except json.JSONDecodeError:
+                pass
+
+        # Keep track of last text response as fallback
+        if last_text_response is None:
+            last_text_response = content
+
+    # Return formatted response if found, otherwise fallback
+    if formatted_response:
+        return formatted_response
+    if last_text_response:
+        return last_text_response
+
+    # Absolute fallback
+    if messages:
+        last_msg = messages[-1]
+        return getattr(last_msg, 'content', str(last_msg))
+    return ""
+
 
 # ------------------------------------------------------
 # Persistent Event Loop for Async Operations
@@ -131,11 +194,23 @@ def chat():
             )
         )
 
-        # Extract the reply
+        # Extract the reply - look for JSON arrays or the last assistant message
+        logger.info(f"Raw result keys: {result.keys() if isinstance(result, dict) else type(result)}")
+
         if "messages" in result and len(result["messages"]) > 0:
-            reply = result["messages"][-1].content
+            # Log all messages for debugging
+            logger.info(f"Total messages in result: {len(result['messages'])}")
+            for i, msg in enumerate(result["messages"]):
+                msg_type = type(msg).__name__
+                msg_content = getattr(msg, 'content', str(msg))[:200] if hasattr(msg, 'content') else str(msg)[:200]
+                logger.info(f"  Message {i}: type={msg_type}, content_preview={msg_content}")
+
+            # Smart response selection: prefer formatted JSON from data agent
+            reply = extract_best_response(result["messages"])
+            logger.info(f"Selected reply: {reply[:500] if reply else 'EMPTY'}")
         else:
             reply = str(result)
+            logger.info(f"No messages found, using str(result): {reply[:500]}")
 
         return jsonify({
             "reply": reply,
@@ -208,3 +283,100 @@ def health():
         "status": "healthy",
         "agent_initialized": _initialized
     })
+
+
+# ------------------------------------------------------
+# Excel Export Endpoint
+# ------------------------------------------------------
+
+@chat_bp.route("/export-excel", methods=["POST"])
+def export_excel():
+    """
+    Convert JSON data to Excel file and return for download.
+
+    Request JSON:
+        {
+            "token": "your-auth-token",
+            "data": [{"col1": "val1", ...}, ...],
+            "filename": "optional_filename"
+        }
+
+    Response: Excel file download
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Invalid JSON body", "status": "error"}), 400
+
+        token = data.get("token")
+        json_data = data.get("data")
+        filename = data.get("filename", f"report_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}")
+
+        # Validate token
+        if not token or token not in SESSIONS:
+            return jsonify({"error": "Invalid or missing token", "status": "error"}), 401
+
+        # Validate data
+        if not json_data or not isinstance(json_data, list):
+            return jsonify({"error": "Data must be a non-empty JSON array", "status": "error"}), 400
+
+        # Process and format the data
+        formatted_data = []
+        for row in json_data:
+            formatted_row = {}
+            for key, value in row.items():
+                # Format datetime fields (ISO format like 2025-09-08T07:24:57.786Z)
+                if isinstance(value, str) and 'T' in value and value.endswith('Z'):
+                    try:
+                        dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        formatted_row[key] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    except:
+                        formatted_row[key] = value
+                # Format large numbers (VMN) as string to prevent scientific notation
+                elif isinstance(value, (int, float)) and value > 1000000:
+                    formatted_row[key] = str(int(value))
+                else:
+                    formatted_row[key] = value
+            formatted_data.append(formatted_row)
+
+        # Convert JSON to DataFrame
+        df = pd.DataFrame(formatted_data)
+
+        # Create Excel file in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Report')
+
+            # Auto-adjust column widths and format columns
+            worksheet = writer.sheets['Report']
+            for idx, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).map(len).max(),
+                    len(str(col))
+                ) + 2
+                # Limit max width to 50
+                col_letter = chr(65 + idx) if idx < 26 else f"A{chr(65 + idx - 26)}"
+                worksheet.column_dimensions[col_letter].width = min(max_length, 50)
+
+        output.seek(0)
+
+        # Ensure filename ends with .xlsx
+        if not filename.endswith('.xlsx'):
+            filename = f"{filename}.xlsx"
+
+        logger.info(f"Excel export successful: {filename}")
+
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        logger.error(f"Excel export error: {str(e)}")
+        return jsonify({
+            "error": f"Failed to export Excel: {str(e)}",
+            "status": "error"
+        }), 500
