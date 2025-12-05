@@ -20,16 +20,31 @@ def extract_best_response(messages: list) -> str:
     Pick the best response from messages.
 
     Logic:
-    - If JSON array has "_id" → it's raw MongoDB data (Supervisor's response) → SKIP
-    - If JSON array has NO "_id" → it's formatted data (Data Agent's response) → USE THIS
-    - For non-JSON responses, use the last non-empty AI message
-    """
-    from langchain_core.messages import AIMessage
+    1. First, find the LAST HumanMessage (user's latest query)
+    2. Only look at AIMessages AFTER that HumanMessage
+    3. Among those, prefer JSON without _id, else return text response
 
+    This prevents returning old JSON data when the latest response is text.
+    """
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    # Step 1: Find index of last HumanMessage
+    last_human_idx = -1
+    for i, msg in enumerate(messages):
+        if isinstance(msg, HumanMessage):
+            last_human_idx = i
+
+    # Step 2: Only consider messages AFTER the last HumanMessage
+    if last_human_idx >= 0:
+        recent_messages = messages[last_human_idx + 1:]
+    else:
+        recent_messages = messages
+
+    # Step 3: Find best response from recent messages only
     formatted_response = None  # JSON without _id (Data Agent)
     last_text_response = None  # Fallback for non-report queries
 
-    for msg in reversed(messages):
+    for msg in reversed(recent_messages):
         if not isinstance(msg, AIMessage):
             continue
 
@@ -66,8 +81,8 @@ def extract_best_response(messages: list) -> str:
         return last_text_response
 
     # Absolute fallback
-    if messages:
-        last_msg = messages[-1]
+    if recent_messages:
+        last_msg = recent_messages[-1]
         return getattr(last_msg, 'content', str(last_msg))
     return ""
 
