@@ -37,7 +37,7 @@ async def create_data_agent(model: ChatOpenAI, checkpointer: MemorySaver = None)
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         name="data_extraction_agent",
-        checkpointer=checkpointer
+        checkpointer=True
     )
 
     if checkpointer:

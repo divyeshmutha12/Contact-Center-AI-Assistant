@@ -7,10 +7,28 @@ import json
 import io
 import pandas as pd
 from datetime import datetime
+import time
 
 from routes.auth import SESSIONS
 
 logger = logging.getLogger(__name__)
+
+# MCP connection error patterns that should trigger retry
+MCP_CONNECTION_ERROR_PATTERNS = [
+    "connection string is not valid",
+    "connect to a MongoDB instance",
+    "ClosedResourceError",
+    "BrokenResourceError",
+    "connection refused",
+    "connection reset",
+    "not connected",
+]
+
+
+def is_mcp_connection_error(error_msg: str) -> bool:
+    """Check if the error is related to MCP connection issues."""
+    error_lower = error_msg.lower()
+    return any(pattern.lower() in error_lower for pattern in MCP_CONNECTION_ERROR_PATTERNS)
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/chat")
 
@@ -126,15 +144,34 @@ def run_async(coro):
     return future.result()  # No timeout - wait until complete
 
 
-def initialize_supervisor():
-    """Initialize the supervisor agent once."""
+def initialize_supervisor(force_reinit: bool = False):
+    """
+    Initialize the supervisor agent once, or reinitialize if forced.
+
+    Args:
+        force_reinit: If True, force reinitialization even if already initialized.
+                      Used when MCP connection errors occur.
+    """
     global _supervisor, _initialized
 
     with _init_lock:
-        if _initialized:
+        if _initialized and not force_reinit:
             return _supervisor
 
         try:
+            if force_reinit:
+                logger.warning("Force reinitializing supervisor agent due to connection error...")
+                _supervisor = None
+                _initialized = False
+                # Reset the cached instances in supervisor_agent module
+                try:
+                    import agents.supervisor_agent as sup_module
+                    sup_module._supervisor_agent = None
+                    sup_module._data_agent = None
+                    sup_module._model = None
+                except Exception as e:
+                    logger.warning(f"Could not reset supervisor module: {e}")
+
             logger.info("Initializing supervisor agent for Flask API...")
             from agents.supervisor_agent import get_supervisor_agent
             _supervisor = run_async(get_supervisor_agent())
@@ -167,6 +204,18 @@ def chat():
             "status": "success"
         }
     """
+    return _process_chat_request(retry_count=0)
+
+
+def _process_chat_request(retry_count: int = 0):
+    """
+    Internal function to process chat request with retry logic.
+
+    Args:
+        retry_count: Number of retries attempted so far (max 1 retry)
+    """
+    MAX_RETRIES = 1
+
     try:
         data = request.get_json()
 
@@ -223,6 +272,14 @@ def chat():
             # Smart response selection: prefer formatted JSON from data agent
             reply = extract_best_response(result["messages"])
             logger.info(f"Selected reply: {reply[:500] if reply else 'EMPTY'}")
+
+            # Check if the reply contains MCP connection error
+            if reply and is_mcp_connection_error(reply) and retry_count < MAX_RETRIES:
+                logger.warning(f"MCP connection error detected in response, retrying (attempt {retry_count + 1})...")
+                # Force reinitialize and retry
+                initialize_supervisor(force_reinit=True)
+                time.sleep(1)  # Brief pause before retry
+                return _process_chat_request(retry_count=retry_count + 1)
         else:
             reply = str(result)
             logger.info(f"No messages found, using str(result): {reply[:500]}")
@@ -233,9 +290,25 @@ def chat():
         })
 
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
+        error_str = str(e)
+        logger.error(f"Chat error: {error_str}")
+
+        # Check if this is an MCP connection error and we haven't retried yet
+        if is_mcp_connection_error(error_str) and retry_count < MAX_RETRIES:
+            logger.warning(f"MCP connection error in exception, reinitializing and retrying (attempt {retry_count + 1})...")
+            try:
+                initialize_supervisor(force_reinit=True)
+                time.sleep(1)  # Brief pause before retry
+                return _process_chat_request(retry_count=retry_count + 1)
+            except Exception as retry_error:
+                logger.error(f"Retry also failed: {retry_error}")
+                return jsonify({
+                    "error": f"Connection error persists after retry: {str(retry_error)}",
+                    "status": "error"
+                }), 500
+
         return jsonify({
-            "error": f"An error occurred: {str(e)}",
+            "error": f"An error occurred: {error_str}",
             "status": "error"
         }), 500
 

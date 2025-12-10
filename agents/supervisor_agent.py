@@ -3,7 +3,9 @@ import re
 import logging
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langgraph_supervisor import create_supervisor
+from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
+from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from agents.data_extraction_agent import create_data_agent
@@ -105,33 +107,83 @@ async def get_data_agent():
 
 async def get_supervisor_agent():
     """
-    Build supervisor agent following official langgraph-supervisor pattern.
-    The supervisor LLM intelligently routes to data_agent when DB access is needed.
+    Build supervisor agent using official langchain.agents.create_agent pattern.
+
+    Features:
+    - SummarizationMiddleware: Automatically summarizes old messages to reduce latency
+    - Data agent wrapped as tool: Supervisor routes to data_agent for DB queries
+    - Checkpointer: Maintains conversation memory across requests
     """
-    global _supervisor_agent
+    global _supervisor_agent, _data_agent
     if _supervisor_agent is not None:
         return _supervisor_agent
 
-    logger.info("Building supervisor agent...")
+    logger.info("Building supervisor agent with SummarizationMiddleware...")
 
     model = get_model()
+
+    # Create data agent (sub-agent)
     data_agent = await get_data_agent()
+    _data_agent = data_agent  # Keep reference to prevent garbage collection
+
+    # Wrap data agent as a tool (official supervisor pattern)
+    @tool
+    async def query_database(request: str) -> str:
+        """Query contact center database using natural language.
+
+        Use this when the user asks about:
+        - Call logs, call records, call history
+        - Customer data, customer information
+        - Agent performance, agent reports
+        - Tickets, interactions, conversations
+        - Any database-related queries
+        - Counts, totals, statistics
+
+        Input: Natural language query (e.g., 'show all calls from today')
+        """
+        # Invoke the data agent asynchronously
+        result = await data_agent.ainvoke(
+            {"messages": [{"role": "user", "content": request}]}
+        )
+
+        # Return the last message content
+        if "messages" in result and len(result["messages"]) > 0:
+            last_msg = result["messages"][-1]
+            return getattr(last_msg, 'content', str(last_msg))
+        return str(result)
 
     SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
-    # Official pattern: Pass agents to create_supervisor
-    # The supervisor LLM will automatically get handoff tools to delegate to data_agent
-    _supervisor_agent = create_supervisor(
-        agents=[data_agent],  # Pass the data agent here!
-        model=model,
-        prompt=SYSTEM_PROMPT,
-        output_mode="full_history"  # Include full conversation history
-    ).compile(checkpointer=_checkpointer)
+    # Get summarization config from environment variables
+    summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
+    max_tokens = int(os.getenv("SUMMARIZATION_MAX_TOKENS", "2000"))
+    messages_to_keep = int(os.getenv("SUMMARIZATION_MESSAGES_TO_KEEP", "5"))
 
-    logger.info("Supervisor agent built successfully with conversation memory")
-    logger.info(f"Supervisor can delegate to: {data_agent.name if hasattr(data_agent, 'name') else 'data_agent'}")
+    # Create supervisor with SummarizationMiddleware for memory optimization
+    # This reduces latency by summarizing old messages instead of sending all
+    _supervisor_agent = create_agent(
+        model=model,
+        tools=[query_database],
+        system_prompt=SYSTEM_PROMPT,
+        middleware=[
+            SummarizationMiddleware(
+                model=summarization_model,
+                max_tokens_before_summary=max_tokens,
+                messages_to_keep=messages_to_keep,
+            ),
+        ],
+        checkpointer=_checkpointer,
+        name="supervisor_agent",
+    )
+
+    logger.info("Supervisor agent built successfully with:")
+    logger.info(f"  - SummarizationMiddleware (model: {summarization_model}, max_tokens: {max_tokens}, keep: {messages_to_keep} messages)")
+    logger.info("  - Conversation memory via checkpointer")
+    logger.info("  - query_database tool for data agent delegation")
 
     return _supervisor_agent
 
 
+# Keep reference to data agent to prevent garbage collection
+_data_agent = None
 supervisor_agent = None
