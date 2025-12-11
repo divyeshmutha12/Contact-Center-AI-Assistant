@@ -2,6 +2,7 @@
 Contact Center Agent - Flask API Server
 
 This module provides REST API endpoints for the Contact Center Agent system.
+Includes WebSocket support for real-time streaming.
 """
 
 import os
@@ -9,6 +10,7 @@ import logging
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_sock import Sock
 
 # Load environment variables first
 load_dotenv()
@@ -20,6 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Global Sock instance for WebSocket support
+sock = Sock()
+
 
 def create_app():
     """Create and configure the Flask application."""
@@ -28,12 +33,19 @@ def create_app():
     # Enable CORS for all routes
     CORS(app)
 
+    # Initialize WebSocket support
+    sock.init_app(app)
+
     # Import and register blueprints
     from routes.auth import auth_bp
     from routes.chat import chat_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
+
+    # Initialize WebSocket routes
+    from routes.websocket import init_websocket
+    init_websocket(sock)
 
     # Root endpoint
     @app.route("/", methods=["GET"])
@@ -43,13 +55,12 @@ def create_app():
             "version": "1.0.0",
             "endpoints": {
                 "auth": {
-                    "login": "POST /auth/login",
-                    "logout": "POST /auth/logout",
-                    "session": "POST /auth/session"
+                    "login": "POST api/auth/login",
+                    "logout": "POST api/auth/logout",
+                    "session": "POST api/auth/session"
                 },
                 "chat": {
                     "message": "POST /chat/",
-                    "health": "GET /chat/health",
                     "clear": "POST /chat/clear"
                 }
             }

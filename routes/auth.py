@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # In-memory session storage
 # Format: {token: {"username": str, "login_time": datetime}}

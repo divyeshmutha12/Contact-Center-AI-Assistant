@@ -158,6 +158,21 @@ async def get_supervisor_agent():
     summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
     max_tokens = int(os.getenv("SUMMARIZATION_MAX_TOKENS", "2000"))
     messages_to_keep = int(os.getenv("SUMMARIZATION_MESSAGES_TO_KEEP", "5"))
+    # Official pattern: Pass agents to create_supervisor
+    # The supervisor LLM will automatically get handoff tools to delegate to data_agent
+
+    # output_mode options:
+    # - "full_history": Supervisor re-processes all messages after sub-agent (SLOW - extra LLM call)
+    # - "last_message": Use sub-agent's response directly without re-processing (FAST!)
+
+    # Note: Conversation memory (checkpointer) is separate and still works with "last_message"
+    # Follow-up questions will still have access to previous conversation context.
+    # _supervisor_agent = create_supervisor(
+    #     agents=[data_agent],  # Pass the data agent here!
+    #     model=model,
+    #     prompt=SYSTEM_PROMPT,
+    #     output_mode="last_message"  # Skip supervisor re-processing - saves ~70s on reports!
+    # ).compile(checkpointer=_checkpointer)
 
     # Create supervisor with SummarizationMiddleware for memory optimization
     # This reduces latency by summarizing old messages instead of sending all

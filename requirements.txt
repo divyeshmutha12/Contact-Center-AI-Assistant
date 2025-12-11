@@ -6,12 +6,15 @@ langchain>=1.0.0
 langchain-openai>=0.3.0
 langgraph>=0.4.0
 
+# Observability & Tracing
+langfuse>=2.0.0
+
 # MongoDB
 pymongo>=4.6.0
 motor>=3.3.0
 
 # MCP (Model Context Protocol)
-mcp>=0.1.0
+mcp>=1.2.0
 langchain-mcp-adapters>=0.0.1
 
 # Data Processing
@@ -26,7 +29,9 @@ typing-extensions>=4.9.0
 # Flask Backend
 flask>=3.0.0
 flask-cors>=4.0.0
+flask-sock>=0.7.0
 
 # Excel Export
 pandas
 openpyxl
+

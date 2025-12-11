@@ -11,6 +11,10 @@ import time
 
 from routes.auth import SESSIONS
 
+# Langfuse for observability and tracing
+from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
+
 logger = logging.getLogger(__name__)
 
 # MCP connection error patterns that should trigger retry
@@ -31,12 +35,19 @@ def is_mcp_connection_error(error_msg: str) -> bool:
     return any(pattern.lower() in error_lower for pattern in MCP_CONNECTION_ERROR_PATTERNS)
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/chat")
+# Initialize Langfuse (reads LANGFUSE_* env vars automatically)
+try:
+    Langfuse()
+    logger.info("Langfuse initialized successfully")
+except Exception as e:
+    logger.warning(f"Langfuse initialization failed (tracing disabled): {e}")
+
+chat_bp = Blueprint("chat", __name__, url_prefix="/api/chat")
 
 
 def extract_best_response(messages: list) -> str:
     """
     Pick the best response from messages.
-
     Logic:
     1. First, find the LAST HumanMessage (user's latest query)
     2. Only look at AIMessages AFTER that HumanMessage
@@ -249,7 +260,16 @@ def _process_chat_request(retry_count: int = 0):
 
         # Use token as thread_id for conversation memory
         # Each user (token) gets their own conversation history
-        config = {"configurable": {"thread_id": token}}
+
+        # Create Langfuse callback handler for tracing
+        langfuse_handler = CallbackHandler()
+        langfuse_handler.user_id = username
+        langfuse_handler.session_id = token[:8]  # Use first 8 chars of token as session
+
+        config = {
+            "configurable": {"thread_id": token},
+            "callbacks": [langfuse_handler]
+        }
 
         result = run_async(
             supervisor.ainvoke(
@@ -358,20 +378,6 @@ def clear_history():
     except Exception as e:
         logger.error(f"Clear history error: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
-
-
-# ------------------------------------------------------
-# Health Check Endpoint
-# ------------------------------------------------------
-
-@chat_bp.route("/health", methods=["GET"])
-def health():
-    """Health check endpoint to verify API status."""
-    return jsonify({
-        "status": "healthy",
-        "agent_initialized": _initialized
-    })
-
 
 # ------------------------------------------------------
 # Excel Export Endpoint
