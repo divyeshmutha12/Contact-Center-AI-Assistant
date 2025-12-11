@@ -86,7 +86,6 @@ if __name__ == "__main__":
     print("    POST /auth/session  - Get session info")
     print("    POST /chat/         - Send message to agent")
     print("    POST /chat/clear    - Clear conversation history")
-    print("    GET  /chat/health   - Check API health")
     print("\n" + "=" * 60 + "\n")
 
     app.run(host="0.0.0.0", port=port, debug=True, threaded=True, use_reloader=False)
