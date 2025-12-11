@@ -100,8 +100,7 @@ async def get_data_agent():
     global _data_agent
     if _data_agent is None:
         logger.info("Creating data extraction agent...")
-        # Pass the shared checkpointer so data agent also has conversation memory
-        _data_agent = await create_data_agent(get_model(), checkpointer=_checkpointer)
+        _data_agent = await create_data_agent(get_model())
     return _data_agent
 
 
