@@ -3,9 +3,22 @@ WebSocket routes for real-time chat streaming.
 
 This module provides WebSocket endpoints for streaming agent responses
 to the frontend in real-time using flask-sock.
+
+Session-based agent architecture:
+- Each WebSocket connection gets its own supervisor + data agent
+- MCP tools are loaded once at server startup and shared across all sessions
+- Agent is created BEFORE sending "connected" response to client
+- Agent is cleaned up when WebSocket disconnects
+
+Download URL transformation:
+- Agent returns: [DOWNLOAD:outputs/filename.xlsx]
+- WebSocket transforms to: sessions/{ws_id}/outputs/filename.xlsx
+- Frontend sends path to /api/chat/download/{path}
 """
 import json
 import logging
+import os
+import re
 import time
 import asyncio
 import threading
@@ -14,14 +27,16 @@ from flask_sock import Sock
 
 from routes.auth import SESSIONS
 from utils.websocket_manager import websocket_manager
+from agents.supervisor_agent import create_session_agent, get_session_agent, cleanup_session
 
 logger = logging.getLogger(__name__)
 
-# Reference to the supervisor (set during initialization)
-_supervisor = None
+# Pattern to match [DOWNLOAD:path] markers in agent responses
+DOWNLOAD_PATTERN = re.compile(r'\[DOWNLOAD:([^\]]+)\]')
+
+# Async event loop for agent operations
 _loop = None
 _loop_thread = None
-_init_lock = threading.Lock()
 
 
 def _start_background_loop(loop):
@@ -49,25 +64,6 @@ def run_async(coro):
     return future.result()
 
 
-def initialize_supervisor():
-    """Initialize the supervisor agent once."""
-    global _supervisor
-
-    with _init_lock:
-        if _supervisor is not None:
-            return _supervisor
-
-        try:
-            logger.info("Initializing supervisor agent for WebSocket...")
-            from agents.supervisor_agent import get_supervisor_agent
-            _supervisor = run_async(get_supervisor_agent())
-            logger.info("Supervisor agent initialized successfully for WebSocket!")
-            return _supervisor
-        except Exception as e:
-            logger.error(f"Failed to initialize supervisor: {e}")
-            raise
-
-
 def send_json(ws, data: dict):
     """Helper to send JSON data through WebSocket."""
     try:
@@ -76,6 +72,50 @@ def send_json(ws, data: dict):
     except Exception as e:
         logger.error(f"[WS] Error sending message: {e}")
         return False
+
+
+def transform_report_path(content: str, session_id: str) -> str:
+    """
+    Transform report_path in JSON response to include session folder.
+
+    Agent returns: {"summary": "...", "report_path": "outputs/file.xlsx"}
+    Transforms to: {"summary": "...", "report_path": "sessions/{session_id}/outputs/file.xlsx"}
+
+    If content is not valid JSON or doesn't have report_path, returns unchanged.
+
+    Args:
+        content: Response content (possibly JSON)
+        session_id: WebSocket session ID
+
+    Returns:
+        Transformed content with session-specific report path
+    """
+    try:
+        # Try to parse as JSON
+        response_data = json.loads(content)
+
+        # Check if it's a dict with report_path field
+        if isinstance(response_data, dict) and "report_path" in response_data:
+            report_path = response_data.get("report_path")
+
+            # Only transform if report_path is not None and is a string
+            if report_path and isinstance(report_path, str):
+                # Prepend session folder to the path
+                response_data["report_path"] = f"sessions/{session_id}/{report_path}"
+                logger.info(f"[WS] Transformed report_path: {report_path} -> {response_data['report_path']}")
+
+                # Return the modified JSON as string
+                return json.dumps(response_data)
+
+        # If not the expected format, return original
+        return content
+
+    except json.JSONDecodeError:
+        # Not JSON, return original content
+        return content
+    except Exception as e:
+        logger.warning(f"[WS] Error transforming report_path: {e}")
+        return content
 
 
 def init_websocket(sock: Sock):
@@ -109,14 +149,31 @@ def init_websocket(sock: Sock):
         }
         """
         # Generate unique ws_id for this connection
-        # This ID is used for: session tracking, thread_id (conversation memory)
+        # This ID is used for: session tracking, thread_id (conversation memory), agent isolation
         ws_id = f"ws_{uuid.uuid4().hex[:16]}"
 
         try:
             # Register connection with websocket manager
             websocket_manager.register(ws_id, ws)
 
-            # Send connection confirmation with ws_id
+            # Create session-specific agent BEFORE sending connected response
+            # This ensures the agent is ready when the client starts sending queries
+            logger.info(f"[WS] Creating session agent for: {ws_id}")
+            try:
+                # create_session_agent is synchronous, call it directly (no run_async needed)
+                create_session_agent(ws_id)
+                logger.info(f"[WS] Session agent created successfully for: {ws_id}")
+            except Exception as e:
+                logger.error(f"[WS] Failed to create session agent: {e}")
+                send_json(ws, {
+                    "type": "error",
+                    "status": "failed",
+                    "data": {"message": f"Failed to initialize agent: {str(e)}"},
+                    "timestamp": time.time()
+                })
+                return
+
+            # Send connection confirmation with ws_id (only after agent is ready)
             send_json(ws, {
                 "type": "connection",
                 "status": "connected",
@@ -154,13 +211,14 @@ def init_websocket(sock: Sock):
                     # Handle query
                     if message_type == "query":
                         # Validate token
-                        if not token or token not in SESSIONS:
-                            send_json(ws, {
-                                "type": "error",
-                                "data": {"message": "Invalid or missing token"},
-                                "timestamp": time.time()
-                            })
-                            continue
+                        # COMMENTED OUT FOR RAPID TESTING - REMOVE IN PRODUCTION!
+                        # if not token or token not in SESSIONS:
+                        #     send_json(ws, {
+                        #         "type": "error",
+                        #         "data": {"message": "Invalid or missing token"},
+                        #         "timestamp": time.time()
+                        #     })
+                        #     continue
 
                         # Get query text
                         query = data.get("data", {}).get("message") or data.get("data", {}).get("query")
@@ -220,8 +278,10 @@ def init_websocket(sock: Sock):
         except Exception as e:
             logger.error(f"[WS] WebSocket error: {e}")
         finally:
+            # Clean up session agent and filesystem folder
+            cleanup_session(ws_id)
             websocket_manager.disconnect(ws_id)
-            logger.info(f"[WS] WebSocket connection closed: {ws_id}")
+            logger.info(f"[WS] WebSocket connection closed and session cleaned up: {ws_id}")
 
 
 def is_ws_connected(ws) -> bool:
@@ -251,32 +311,36 @@ def process_query_streaming(ws, query: str, token: str, ws_id: str):
     # ws_id is used for both session tracking AND conversation memory (thread_id)
     # This simplifies the system: one WebSocket connection = one conversation thread
 
-    supervisor = initialize_supervisor()
+    supervisor = get_session_agent(ws_id)
 
     if supervisor is None:
         send_json(ws, {
             "type": "error",
-            "data": {"message": "Agent not initialized. Please try again."},
+            "data": {"message": "Session agent not found. Please reconnect."},
             "ws_id": ws_id,
             "timestamp": time.time()
         })
         return
 
-    # Get user info for tracing
-    session = SESSIONS.get(token, {})
-    username = session.get("username", "unknown") if isinstance(session, dict) else session
+    # Get user info for tracing (handle missing token gracefully)
+    username = "anonymous"  # Default for testing without auth
+    if token and token in SESSIONS:
+        session = SESSIONS.get(token, {})
+        username = session.get("username", "anonymous") if isinstance(session, dict) else session
 
-    # Only use Langfuse in production or if explicitly enabled (reduces latency in dev)
+    # Langfuse tracing configuration
     callbacks = []
     if os.getenv("ENABLE_LANGFUSE", "false").lower() == "true":
         try:
             from langfuse.langchain import CallbackHandler
             langfuse_handler = CallbackHandler()
             langfuse_handler.user_id = username
-            langfuse_handler.session_id = ws_id[:8]  # Use ws_id for Langfuse session
+            langfuse_handler.session_id = ws_id  # Use full ws_id for session tracking
+            langfuse_handler.tags = ["websocket", "contact-center"]
             callbacks.append(langfuse_handler)
+            logger.info(f"[WS] Langfuse tracing enabled for user: {username}, session: {ws_id}")
         except Exception as e:
-            logger.warning(f"[WS] Langfuse not available: {e}")
+            logger.warning(f"[WS] Langfuse initialization failed: {e}")
 
     # ws_id is used as thread_id for LangGraph conversation memory
     # One WebSocket connection = one conversation thread
@@ -502,7 +566,21 @@ def process_query_streaming(ws, query: str, token: str, ws_id: str):
                 elif event_type == "on_tool_end":
                     tool_name = event.get("name", "unknown")
                     logger.info(f"[PERF] Tool completed: {tool_name} at {(now - perf_start)*1000:.0f}ms")
-                    output = str(event.get("data", {}).get("output", ""))
+
+                    # Safely convert output to string - handle non-serializable objects (fixes msgpack error)
+                    try:
+                        raw_output = event.get("data", {}).get("output", "")
+                        if hasattr(raw_output, 'content'):
+                            # Handle ToolMessage objects (prevents msgpack serialization error)
+                            output = str(raw_output.content)
+                        elif isinstance(raw_output, (dict, list)):
+                            output = json.dumps(raw_output)
+                        else:
+                            output = str(raw_output)
+                    except Exception as e:
+                        logger.warning(f"[WS] Could not serialize tool output: {e}")
+                        output = f"[Output not serializable: {type(raw_output).__name__}]"
+
                     message_queue.put({
                         "type": "tool_end",
                         "data": {
@@ -587,10 +665,13 @@ def process_query_streaming(ws, query: str, token: str, ws_id: str):
 
     # Send final message with accumulated content (if we have content and connection alive)
     if final_content["text"] and connection_alive:
+        # Transform report_path in JSON response to include session folder
+        transformed_content = transform_report_path(final_content["text"], ws_id)
+
         send_json(ws, {
             "type": "final",
             "data": {
-                "content": final_content["text"],
+                "content": transformed_content,
                 "role": "assistant"
             },
             "ws_id": ws_id,

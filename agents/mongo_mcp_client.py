@@ -12,6 +12,36 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------
+# Shared MCP Tools (loaded once at server startup)
+# ------------------------------------------------------
+_shared_mcp_client: Optional["MongoMCPClient"] = None
+_shared_mcp_tools: Optional[List[BaseTool]] = None
+
+
+async def init_shared_mcp_tools() -> List[BaseTool]:
+    """
+    Initialize MCP tools once at server startup.
+    These tools are shared across all session agents.
+    """
+    global _shared_mcp_client, _shared_mcp_tools
+
+    if _shared_mcp_tools is not None:
+        return _shared_mcp_tools
+
+    logger.info("Initializing shared MCP tools (one-time startup)...")
+    _shared_mcp_client = MongoMCPClient()
+    _shared_mcp_tools = await _shared_mcp_client.get_tools()
+    logger.info(f"Shared MCP tools initialized: {len(_shared_mcp_tools)} tools")
+    return _shared_mcp_tools
+
+
+def get_shared_mcp_tools() -> List[BaseTool]:
+    """Get the shared MCP tools (must be initialized first)."""
+    if _shared_mcp_tools is None:
+        raise RuntimeError("MCP tools not initialized. Call init_shared_mcp_tools() first.")
+    return _shared_mcp_tools
+
 
 class MongoMCPClient:
     """

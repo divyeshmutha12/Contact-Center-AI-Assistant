@@ -3,10 +3,16 @@ Contact Center Agent - Flask API Server
 
 This module provides REST API endpoints for the Contact Center Agent system.
 Includes WebSocket support for real-time streaming.
+
+Startup sequence:
+1. Load environment variables
+2. Initialize MCP tools (shared across all session agents)
+3. Start Flask server with WebSocket support
 """
 
 import os
 import logging
+import asyncio
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -70,7 +76,29 @@ def create_app():
     return app
 
 
+def init_mcp_tools():
+    """Initialize shared MCP tools at server startup."""
+    from agents.mongo_mcp_client import init_shared_mcp_tools
+
+    logger.info("Initializing shared MCP tools...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        tools = loop.run_until_complete(init_shared_mcp_tools())
+        logger.info(f"MCP tools initialized successfully: {len(tools)} tools available")
+        return tools
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP tools: {e}")
+        raise
+    finally:
+        loop.close()
+
+
 if __name__ == "__main__":
+    # Initialize MCP tools before creating the app
+    # These tools are shared across all session agents
+    init_mcp_tools()
+
     app = create_app()
 
     # Get port from environment or use default
@@ -86,6 +114,7 @@ if __name__ == "__main__":
     print("    POST /auth/session  - Get session info")
     print("    POST /chat/         - Send message to agent")
     print("    POST /chat/clear    - Clear conversation history")
+    print("    GET  /chat/download/<path> - Download generated files")
     print("\n" + "=" * 60 + "\n")
 
     app.run(host="0.0.0.0", port=port, debug=True, threaded=True, use_reloader=False)

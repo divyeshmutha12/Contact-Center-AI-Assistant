@@ -73,15 +73,12 @@ FALLBACK_MODELS = [
     if m.strip()
 ]
 
-# Lazy instances
+# Shared resources (model and checkpointer can be shared across sessions)
 _model = None
-_data_agent = None
-_supervisor_agent = None
-
-# Checkpointer for conversation memory (short-term memory)
-# This enables the bot to remember previous messages in the same conversation
-# Using JsonPlusSerializer to properly serialize LangChain message types (ToolMessage, etc.)
 _checkpointer = MemorySaver(serde=JsonPlusSerializer())
+
+# Session agents storage: {session_id: {"supervisor": agent, "data_agent": agent}}
+_session_agents = {}
 
 
 # ---------------------------------------------------------
@@ -89,43 +86,32 @@ _checkpointer = MemorySaver(serde=JsonPlusSerializer())
 # ---------------------------------------------------------
 
 def get_model():
+    """Get shared model instance."""
     global _model
     if _model is None:
         logger.info(f"Creating OpenAI model: {model_name}")
-        _model = ChatOpenAI(model=model_name )
+        _model = ChatOpenAI(model=model_name)
     return _model
 
 
-async def get_data_agent():
-    global _data_agent
-    if _data_agent is None:
-        logger.info("Creating data extraction agent...")
-        _data_agent = await create_data_agent(get_model())
-    return _data_agent
-
-
-async def get_supervisor_agent():
+def create_session_agent(session_id: str):
     """
-    Build supervisor agent using official langchain.agents.create_agent pattern.
+    Create supervisor and data agents for a specific session.
 
-    Features:
-    - SummarizationMiddleware: Automatically summarizes old messages to reduce latency
-    - Data agent wrapped as tool: Supervisor routes to data_agent for DB queries
-    - Checkpointer: Maintains conversation memory across requests
+    Args:
+        session_id: Unique session ID (ws_id) for filesystem isolation
+
+    Returns:
+        Supervisor agent configured for this session
     """
-    global _supervisor_agent, _data_agent
-    if _supervisor_agent is not None:
-        return _supervisor_agent
-
-    logger.info("Building supervisor agent with SummarizationMiddleware...")
+    logger.info(f"Creating agents for session: {session_id}")
 
     model = get_model()
 
-    # Create data agent (sub-agent)
-    data_agent = await get_data_agent()
-    _data_agent = data_agent  # Keep reference to prevent garbage collection
+    # Create session-specific data agent
+    data_agent = create_data_agent(model, session_id)
 
-    # Wrap data agent as a tool (official supervisor pattern)
+    # Wrap data agent as a tool
     @tool
     async def query_database(request: str) -> str:
         """Query contact center database using natural language.
@@ -140,12 +126,9 @@ async def get_supervisor_agent():
 
         Input: Natural language query (e.g., 'show all calls from today')
         """
-        # Invoke the data agent asynchronously
         result = await data_agent.ainvoke(
             {"messages": [{"role": "user", "content": request}]}
         )
-
-        # Return the last message content
         if "messages" in result and len(result["messages"]) > 0:
             last_msg = result["messages"][-1]
             return getattr(last_msg, 'content', str(last_msg))
@@ -153,29 +136,13 @@ async def get_supervisor_agent():
 
     SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
-    # Get summarization config from environment variables
+    # Get summarization config
     summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
     max_tokens = int(os.getenv("SUMMARIZATION_MAX_TOKENS", "2000"))
     messages_to_keep = int(os.getenv("SUMMARIZATION_MESSAGES_TO_KEEP", "5"))
-    # Official pattern: Pass agents to create_supervisor
-    # The supervisor LLM will automatically get handoff tools to delegate to data_agent
 
-    # output_mode options:
-    # - "full_history": Supervisor re-processes all messages after sub-agent (SLOW - extra LLM call)
-    # - "last_message": Use sub-agent's response directly without re-processing (FAST!)
-
-    # Note: Conversation memory (checkpointer) is separate and still works with "last_message"
-    # Follow-up questions will still have access to previous conversation context.
-    # _supervisor_agent = create_supervisor(
-    #     agents=[data_agent],  # Pass the data agent here!
-    #     model=model,
-    #     prompt=SYSTEM_PROMPT,
-    #     output_mode="last_message"  # Skip supervisor re-processing - saves ~70s on reports!
-    # ).compile(checkpointer=_checkpointer)
-
-    # Create supervisor with SummarizationMiddleware for memory optimization
-    # This reduces latency by summarizing old messages instead of sending all
-    _supervisor_agent = create_agent(
+    # Create supervisor agent
+    supervisor = create_agent(
         model=model,
         tools=[query_database],
         system_prompt=SYSTEM_PROMPT,
@@ -190,14 +157,25 @@ async def get_supervisor_agent():
         name="supervisor_agent",
     )
 
-    logger.info("Supervisor agent built successfully with:")
-    logger.info(f"  - SummarizationMiddleware (model: {summarization_model}, max_tokens: {max_tokens}, keep: {messages_to_keep} messages)")
-    logger.info("  - Conversation memory via checkpointer")
-    logger.info("  - query_database tool for data agent delegation")
+    # Store agents for this session
+    _session_agents[session_id] = {
+        "supervisor": supervisor,
+        "data_agent": data_agent
+    }
 
-    return _supervisor_agent
+    logger.info(f"Session {session_id} agents created successfully")
+    return supervisor
 
 
-# Keep reference to data agent to prevent garbage collection
-_data_agent = None
-supervisor_agent = None
+def get_session_agent(session_id: str):
+    """Get existing supervisor agent for a session."""
+    if session_id not in _session_agents:
+        return None
+    return _session_agents[session_id]["supervisor"]
+
+
+def cleanup_session(session_id: str):
+    """Clean up agents when session ends."""
+    if session_id in _session_agents:
+        logger.info(f"Cleaning up session: {session_id}")
+        del _session_agents[session_id]
