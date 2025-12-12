@@ -47,12 +47,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Screenshots (temporary test images)
-*.png
-*.jpg
-*.jpeg
-*.gif
-
 # MCP
 .mcp/
 
@@ -64,3 +58,20 @@ htmlcov/
 # Node modules (for MCP server)
 node_modules/
 package-lock.json
+
+# Screenshots (temporary test images)
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Agent files (session-based storage, temporary outputs)
+agent_files/
+
+# Temporary files
+temp.txt
+temp*.txt
+
+# Langfuse traces
+trace-*.json
+*.trace.json

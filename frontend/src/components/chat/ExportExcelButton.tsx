@@ -2,64 +2,57 @@
 
 import { useState } from "react";
 import { useAuthStore } from "@/lib/store";
+import { ReportPath } from "@/lib/websocket-message-handler";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-interface ExportData {
-  filename: string;
-  total_records: number;
-  data: Record<string, unknown>[];
-}
-
 interface ExportExcelButtonProps {
-  exportData: ExportData;
+  reportPath: ReportPath;  // File path (e.g., "sessions/ws_id/outputs/report.xlsx")
 }
 
-export function ExportExcelButton({ exportData }: ExportExcelButtonProps) {
+export function ExportExcelButton({ reportPath }: ExportExcelButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { tokens } = useAuthStore();
 
   const handleExport = async () => {
-    if (!tokens?.accessToken) {
-      setError("Not authenticated");
-      return;
-    }
-
     setIsExporting(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/export-excel`, {
-        method: "POST",
+      // Download the pre-generated Excel file from the backend
+      // reportPath format: "sessions/ws_id/outputs/report.xlsx"
+      const downloadUrl = `${API_BASE_URL}/api/chat/download/${reportPath}`;
+
+      const response = await fetch(downloadUrl, {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
+          // Add auth header if needed in future
+          // "Authorization": `Bearer ${tokens?.accessToken}`,
         },
-        body: JSON.stringify({
-          token: tokens.accessToken,
-          data: exportData.data,
-          filename: exportData.filename,
-        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to export Excel");
+        throw new Error(errorData.error || "Failed to download Excel file");
       }
+
+      // Extract filename from reportPath (e.g., "report.xlsx" from "sessions/ws_id/outputs/report.xlsx")
+      const filename = reportPath.split('/').pop() || 'report.xlsx';
 
       // Get the blob and download it
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${exportData.filename}.xlsx`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Export error:", err);
-      setError(err instanceof Error ? err.message : "Export failed");
+      console.error("Download error:", err);
+      setError(err instanceof Error ? err.message : "Download failed");
     } finally {
       setIsExporting(false);
     }
@@ -74,11 +67,12 @@ export function ExportExcelButton({ exportData }: ExportExcelButtonProps) {
       >
         <DownloadIcon className="w-4 h-4" />
         {isExporting ? (
-          "Exporting..."
+          "Downloading..."
         ) : (
-          <>Download Excel ({exportData.total_records} records)</>
+          "Download Excel Report"
         )}
       </button>
+      
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );

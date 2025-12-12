@@ -25,6 +25,9 @@ import { ChartConfig } from "./chart-types";
 // Filtered Message Result
 // ============================================
 
+// Report path for Excel download (e.g., "sessions/ws_abc123/outputs/report.xlsx")
+export type ReportPath = string;
+
 export interface FilteredMessage {
   type: WSMessageType;
   role?: MessageRole;
@@ -40,6 +43,8 @@ export interface FilteredMessage {
   errorCode?: string;
   // Chart data from final response
   chartData?: ChartConfig;
+  // Report path for Excel download (e.g., "sessions/ws_id/outputs/report.xlsx")
+  reportPath?: ReportPath;
   // Original raw message for advanced use cases
   raw: WSResponse;
 }

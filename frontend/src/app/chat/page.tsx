@@ -20,6 +20,7 @@ export default function ChatPage() {
     streamingContent,
     thinkingSteps,
     currentChartData,
+    currentReportPath,
     currentConversation,
     connect,
     reconnect,
@@ -157,6 +158,7 @@ export default function ChatPage() {
             isLoading={isLoading}
             thinkingSteps={thinkingSteps}
             chartData={currentChartData}
+            reportPath={currentReportPath}
             onSendMessage={handleSendMessage}
           />
         </div>

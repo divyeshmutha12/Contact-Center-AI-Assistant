@@ -4,6 +4,7 @@ import {
   MessageRole,
   FilteredMessage,
   ChartConfig,
+  ReportPath,
 } from "./websocket-message-handler";
 import { ThinkingStep, Message, ResponseVersion, Conversation } from "./types";
 
@@ -16,7 +17,7 @@ export interface WebSocketHandlerCallbacks {
   setSessionId: (wsId: string) => void;  // Named for backwards compat, but stores ws_id
   setFilteredMessages: (messages: FilteredMessage[]) => void;
   addThinkingStep: (step: ThinkingStep) => void;
-  startFakeStreaming: (content: string, chartData?: ChartConfig) => void;
+  startFakeStreaming: (content: string, chartData?: ChartConfig, reportPath?: ReportPath) => void;
 
   // Getters for current state
   getFullResponseContent: () => string;
@@ -24,6 +25,7 @@ export interface WebSocketHandlerCallbacks {
   isStillStreaming: () => boolean;
   getRetryingMessageId: () => string | null;
   getCurrentChartData: () => ChartConfig | null;
+  getCurrentReportPath: () => ReportPath | null;
   getThinkingSteps: () => ThinkingStep[];
 
   // State updates
@@ -32,12 +34,14 @@ export interface WebSocketHandlerCallbacks {
     retryingMessageId: string,
     fullResponseContent: string,
     currentChartData: ChartConfig | null,
+    currentReportPath: ReportPath | null,
     thinkingSteps: ThinkingStep[]
   ) => void;
   updateConversationWithNewMessage: (
     conv: Conversation,
     fullResponseContent: string,
     currentChartData: ChartConfig | null,
+    currentReportPath: ReportPath | null,
     thinkingSteps: ThinkingStep[]
   ) => void;
   setLoadingComplete: () => void;
@@ -111,7 +115,7 @@ export function handleWebSocketMessage(
     case WSMessageType.FINAL:
       console.log("[WS] Final message received, starting fake streaming");
       if (filtered.content) {
-        callbacks.startFakeStreaming(filtered.content, filtered.chartData);
+        callbacks.startFakeStreaming(filtered.content, filtered.chartData, filtered.reportPath);
       }
       break;
 
@@ -171,6 +175,7 @@ function handleCompleteMessage(callbacks: WebSocketHandlerCallbacks): void {
     const stillStreaming = callbacks.isStillStreaming();
     const retryingMessageId = callbacks.getRetryingMessageId();
     const currentChartData = callbacks.getCurrentChartData();
+    const currentReportPath = callbacks.getCurrentReportPath();
     const thinkingSteps = callbacks.getThinkingSteps();
 
     if (stillStreaming) {
@@ -185,6 +190,7 @@ function handleCompleteMessage(callbacks: WebSocketHandlerCallbacks): void {
           retryingMessageId,
           fullResponseContent,
           currentChartData,
+          currentReportPath,
           thinkingSteps
         );
       } else {
@@ -192,6 +198,7 @@ function handleCompleteMessage(callbacks: WebSocketHandlerCallbacks): void {
           conv,
           fullResponseContent,
           currentChartData,
+          currentReportPath,
           thinkingSteps
         );
       }
@@ -210,6 +217,7 @@ function handleCompleteMessage(callbacks: WebSocketHandlerCallbacks): void {
 export function createResponseVersion(
   content: string,
   chartData: ChartConfig | null,
+  reportPath: ReportPath | null,
   thinkingSteps: ThinkingStep[],
   isOriginal: boolean = false
 ): ResponseVersion {
@@ -218,6 +226,7 @@ export function createResponseVersion(
     content,
     timestamp: new Date(),
     chartData: chartData || undefined,
+    reportPath: reportPath || undefined,
     thinkingSteps: [...thinkingSteps],
   };
 }
@@ -229,9 +238,10 @@ export function createResponseVersion(
 export function createAssistantMessage(
   content: string,
   chartData: ChartConfig | null,
+  reportPath: ReportPath | null,
   thinkingSteps: ThinkingStep[]
 ): Message {
-  const firstVersion = createResponseVersion(content, chartData, thinkingSteps, true);
+  const firstVersion = createResponseVersion(content, chartData, reportPath, thinkingSteps, true);
 
   return {
     id: (Date.now() + 1).toString(),

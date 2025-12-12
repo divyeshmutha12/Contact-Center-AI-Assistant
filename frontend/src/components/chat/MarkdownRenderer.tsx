@@ -2,54 +2,18 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useMemo } from "react";
 import { ExportExcelButton } from "./ExportExcelButton";
-
-// Type for export data extracted from content
-export interface ExportData {
-  filename: string;
-  total_records: number;
-  data: Record<string, unknown>[];
-}
+import { ReportPath } from "@/lib/websocket-message-handler";
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
-  onExportDataFound?: (data: ExportData | null) => void;
+  reportPath?: ReportPath | null;  // File path for Excel download
 }
 
-// Extract export data from content and return clean content
-function extractExportData(content: string): { cleanContent: string; exportData: ExportData | null } {
-  const exportRegex = /\[EXPORT_DATA\]\s*([\s\S]*?)\s*\[\/EXPORT_DATA\]/;
-  const match = content.match(exportRegex);
-
-  if (!match) {
-    return { cleanContent: content, exportData: null };
-  }
-
-  try {
-    const jsonStr = match[1].trim();
-    const exportData = JSON.parse(jsonStr) as ExportData;
-
-    // Validate the structure
-    if (!exportData.filename || !exportData.data || !Array.isArray(exportData.data)) {
-      console.warn("Invalid export data structure:", exportData);
-      return { cleanContent: content, exportData: null };
-    }
-
-    // Remove the export block from content
-    const cleanContent = content.replace(exportRegex, "").trim();
-
-    return { cleanContent, exportData };
-  } catch (err) {
-    console.error("Failed to parse export data:", err);
-    return { cleanContent: content, exportData: null };
-  }
-}
-
-export function MarkdownRenderer({ content, className = "" }: MarkdownRendererProps) {
-  // Extract export data and clean content
-  const { cleanContent, exportData } = useMemo(() => extractExportData(content), [content]);
+export function MarkdownRenderer({ content, className = "", reportPath }: MarkdownRendererProps) {
+  // Check if reportPath is a valid non-empty string
+  const hasReportPath = reportPath && typeof reportPath === "string" && reportPath.length > 0;
 
   return (
     <div className={`markdown-content ${className}`}>
@@ -161,11 +125,11 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
           ),
         }}
       >
-        {cleanContent}
+        {content}
       </ReactMarkdown>
 
-      {/* Show Export Excel button if export data was found */}
-      {exportData && <ExportExcelButton exportData={exportData} />}
+      {/* Show Export Excel button if report path is available */}
+      {hasReportPath && <ExportExcelButton reportPath={reportPath} />}
     </div>
   );
 }

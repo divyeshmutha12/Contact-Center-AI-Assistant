@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react";
 import { Message, Conversation, ThinkingStep, useChatStore } from "@/lib/store";
-import { ChartConfig } from "@/lib/websocket-message-handler";
+import { ChartConfig, ReportPath } from "@/lib/websocket-message-handler";
 import { ThoughtProcess } from "./ThoughtProcess";
 import { ChartRenderer } from "./ChartRenderer";
 import { MarkdownRenderer } from "./MarkdownRenderer";
@@ -32,6 +32,7 @@ interface MessageListProps {
   isLoading: boolean;
   thinkingSteps: ThinkingStep[];
   chartData: ChartConfig | null;
+  reportPath: ReportPath | null;
   onSendMessage: (message: string) => void;
 }
 
@@ -41,6 +42,7 @@ export function MessageList({
   isLoading,
   thinkingSteps,
   chartData,
+  reportPath,
   onSendMessage,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -199,7 +201,7 @@ export function MessageList({
       {streamingContent && (
         <div className="mb-6">
           <div className="w-full px-4 py-3 rounded-2xl bg-gray-100 text-gray-900">
-            <MarkdownRenderer content={streamingContent} className="text-sm" />
+            <MarkdownRenderer content={streamingContent} className="text-sm" reportPath={reportPath} />
           </div>
         </div>
       )}
@@ -282,10 +284,11 @@ function MessageBubble({ message, hideActions = false, fullWidth = false, showSt
   const totalVersions = message.responseVersions?.length || 1;
   const currentVersionIndex = message.currentVersionIndex ?? 0;
 
-  // Get stored thinking steps and chart data from current version
+  // Get stored thinking steps, chart data, and report path from current version
   const currentVersion = message.responseVersions?.[currentVersionIndex];
   const storedThinkingSteps = currentVersion?.thinkingSteps || [];
   const storedChartData = currentVersion?.chartData || null;
+  const storedReportPath = currentVersion?.reportPath || null;
   const hasStoredThinkingSteps = showStoredData && storedThinkingSteps.length > 0;
   const hasStoredChart = showStoredData && storedChartData;
 
@@ -318,7 +321,7 @@ function MessageBubble({ message, hideActions = false, fullWidth = false, showSt
           </>
         ) : (
           <>
-            <MarkdownRenderer content={message.content} className="text-sm" />
+            <MarkdownRenderer content={message.content} className="text-sm" reportPath={storedReportPath} />
             <p className="text-xs text-gray-500 mt-1">{formatTime(message.timestamp)}</p>
           </>
         )}

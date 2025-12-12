@@ -72,6 +72,7 @@ export type {
   StoredMessages,
   MessageCallback,
   MessageHandlerCallbacks,
+  ReportPath,
 } from "./ws-filtered-types";
 
 // ============================================

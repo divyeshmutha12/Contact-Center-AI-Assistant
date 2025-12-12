@@ -4,6 +4,7 @@ import {
   FilteredMessage,
   StoredMessages,
   ChartConfig,
+  ReportPath,
 } from "./websocket-message-handler";
 import { ThinkingStep, Message, Conversation, ResponseVersion } from "./types";
 import { useAuthStore, setResetChatStore, setConnectWebSocket } from "./auth-store";
@@ -44,6 +45,9 @@ interface ChatState {
   // Chart data from final response
   currentChartData: ChartConfig | null;
 
+  // Report path for Excel download (e.g., "sessions/ws_id/outputs/report.xlsx")
+  currentReportPath: ReportPath | null;
+
   // Thinking/reasoning messages (type: "message", role: "ai")
   thinkingSteps: ThinkingStep[];
 
@@ -77,11 +81,12 @@ interface ChatState {
   deleteConversation: (id: string) => void;
   clearStreamingContent: () => void;
   getFilteredMessages: () => StoredMessages | null;
-  startFakeStreaming: (fullText: string, chartData?: ChartConfig) => void;
+  startFakeStreaming: (fullText: string, chartData?: ChartConfig, reportPath?: ReportPath) => void;
   stopFakeStreaming: () => void;
   addThinkingStep: (step: ThinkingStep) => void;
   clearThinkingSteps: () => void;
   clearChartData: () => void;
+  clearReportPath: () => void;
   reset: () => void;
 }
 
@@ -102,8 +107,8 @@ function createHandlerCallbacks(
 
     addThinkingStep: (step: ThinkingStep) => get().addThinkingStep(step),
 
-    startFakeStreaming: (content: string, chartData?: ChartConfig) => {
-      get().startFakeStreaming(content, chartData);
+    startFakeStreaming: (content: string, chartData?: ChartConfig, reportPath?: ReportPath) => {
+      get().startFakeStreaming(content, chartData, reportPath);
     },
 
     getFullResponseContent: () => get().fullResponseContent,
@@ -111,6 +116,7 @@ function createHandlerCallbacks(
     isStillStreaming: () => get().isStreaming,
     getRetryingMessageId: () => get().retryingMessageId,
     getCurrentChartData: () => get().currentChartData,
+    getCurrentReportPath: () => get().currentReportPath,
     getThinkingSteps: () => get().thinkingSteps,
 
     updateConversationWithRetry: (
@@ -118,9 +124,10 @@ function createHandlerCallbacks(
       retryingMessageId: string,
       fullResponseContent: string,
       currentChartData: ChartConfig | null,
+      currentReportPath: ReportPath | null,
       thinkingSteps: ThinkingStep[]
     ) => {
-      const newVersion = createResponseVersion(fullResponseContent, currentChartData, thinkingSteps);
+      const newVersion = createResponseVersion(fullResponseContent, currentChartData, currentReportPath, thinkingSteps);
 
       const updatedMessages = conv.messages.map((msg) => {
         if (msg.id === retryingMessageId) {
@@ -161,11 +168,13 @@ function createHandlerCallbacks(
       conv: Conversation,
       fullResponseContent: string,
       currentChartData: ChartConfig | null,
+      currentReportPath: ReportPath | null,
       thinkingSteps: ThinkingStep[]
     ) => {
       const assistantMessage = createAssistantMessage(
         fullResponseContent,
         currentChartData,
+        currentReportPath,
         thinkingSteps
       );
 
@@ -283,6 +292,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingContent: "",
   fullResponseContent: "",
   currentChartData: null,
+  currentReportPath: null,
   thinkingSteps: [],
   filteredMessages: null,
   currentQueryMessages: [],
@@ -375,6 +385,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       fullResponseContent: "",
       currentChartData: null,
+      currentReportPath: null,
       thinkingSteps: [],
       currentQueryMessages: [],
     });
@@ -439,6 +450,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       fullResponseContent: "",
       currentChartData: null,
+      currentReportPath: null,
       thinkingSteps: [],
       currentQueryMessages: [],
       retryingMessageId: assistantMessageId,
@@ -542,7 +554,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // Start fake word-by-word streaming (instant for long responses like reports)
-  startFakeStreaming: (fullText: string, chartData?: ChartConfig) => {
+  startFakeStreaming: (fullText: string, chartData?: ChartConfig, reportPath?: ReportPath) => {
     const { streamingIntervalId } = get();
 
     if (streamingIntervalId) {
@@ -561,6 +573,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         fullResponseContent: fullText,
         streamingContent: fullText,
         currentChartData: chartData || null,
+        currentReportPath: reportPath || null,
         streamingIntervalId: null,
       });
       return;
@@ -576,6 +589,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       fullResponseContent: fullText,
       streamingContent: "",
       currentChartData: chartData || null,
+      currentReportPath: reportPath || null,
     });
 
     // Faster streaming: process 3 words per tick at 15ms intervals
@@ -632,6 +646,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ currentChartData: null });
   },
 
+  // Clear report path
+  clearReportPath: () => {
+    set({ currentReportPath: null });
+  },
+
   reset: () => {
     const { ws, messageHandler, streamingIntervalId } = get();
 
@@ -655,6 +674,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       fullResponseContent: "",
       currentChartData: null,
+      currentReportPath: null,
       thinkingSteps: [],
       filteredMessages: null,
       currentQueryMessages: [],

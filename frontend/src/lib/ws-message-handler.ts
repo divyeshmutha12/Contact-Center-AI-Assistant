@@ -21,7 +21,7 @@ import {
   ErrorResponse,
 } from "./ws-responses";
 import { ChartConfig } from "./chart-types";
-import { FilteredMessage, StoredMessages, MessageHandlerCallbacks } from "./ws-filtered-types";
+import { FilteredMessage, StoredMessages, MessageHandlerCallbacks, ReportPath } from "./ws-filtered-types";
 
 // ============================================
 // WebSocket Message Handler Class
@@ -267,6 +267,7 @@ export class WebSocketMessageHandler {
     const reasoning: string[] = [];
     let finalText = "";
     let chartData: ChartConfig | undefined;
+    let reportPath: ReportPath | undefined;
 
     // Handle both cases: content can be a string or an array
     if (typeof raw.data.content === "string") {
@@ -283,7 +284,7 @@ export class WebSocketMessageHandler {
       }
     }
 
-    // Try to parse the final text as JSON and extract summary and chart_data
+    // Try to parse the final text as JSON and extract summary, chart_data, and report_path
     let displayContent = finalText;
     try {
       const parsed = JSON.parse(finalText);
@@ -297,6 +298,10 @@ export class WebSocketMessageHandler {
           options: parsed.chart_data.options,
         };
       }
+      // report_path is the file path for Excel download
+      if (parsed.report_path && typeof parsed.report_path === "string") {
+        reportPath = parsed.report_path;
+      }
     } catch {
       // Not JSON, use as-is
     }
@@ -306,6 +311,7 @@ export class WebSocketMessageHandler {
       content: displayContent,
       reasoning,
       chartData,
+      reportPath,
     };
   }
 

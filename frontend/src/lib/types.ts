@@ -1,4 +1,4 @@
-import { ChartConfig } from "./websocket-message-handler";
+import { ChartConfig, ReportPath } from "./websocket-message-handler";
 
 // ============================================
 // User & Authentication Types
@@ -47,6 +47,7 @@ export interface ResponseVersion {
   content: string;
   timestamp: Date;
   chartData?: ChartConfig;
+  reportPath?: ReportPath;
   thinkingSteps?: ThinkingStep[];
 }
 
