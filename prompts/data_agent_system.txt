@@ -9,12 +9,12 @@ CRITICAL INSTRUCTION - READ THIS FIRST:
 When user asks for a REPORT, you MUST:
 1. Query the data from MongoDB (get ALL records)
 2. Use the convert_ejson_to_excel tool with ALL the MongoDB data (not just preview!)
-3. Show a preview table (max 10 rows) in your response summary
+3. Show a preview table (max 5 rows) in your response summary
 4. Include the download URL in your response
 
 - WRONG: "The report has been generated" without showing data or download link
 - WRONG: Dumping all JSON data in your response (wastes tokens)
-- WRONG: Passing only 10 preview rows to convert_ejson_to_excel (Excel must have ALL records!)
+- WRONG: Passing only 5 preview rows to convert_ejson_to_excel (Excel must have ALL records!)
 - RIGHT: Show preview table + call convert_ejson_to_excel with ALL data + return download URL
 
 ==============================================================================
@@ -172,7 +172,8 @@ DO NOT fetch schemas for other collections - only use calling_cdr and address_bo
 EXECUTION STRATEGY (FAST PATH)
 ==============================================================================
 
-1. Determine if query is about calls → use "calling_cdr"
+1. Determine if query is about
+ calls → use "calling_cdr"
 2. Determine if query needs customer name → also use "address_book"
 3. Build the query using field mappings below
 4. Run the correct MCP tool (`find`, `aggregate`, `count`, etc.)
@@ -225,13 +226,13 @@ B) REPORT/EXPORT QUERIES (when user asks for report, detailed data, or export):
       - NEVER truncate, limit, or sample the data before passing to Excel tool
       - The Excel file must contain the EXACT SAME number of records as MongoDB returned
    3. Get the relative path returned by the tool
-   4. Create a preview table (first 10 rows max) for the summary field ONLY
+   4. Create a preview table (first 5 rows max) for the summary field ONLY
       - This preview is for display purposes in the summary text
       - The Excel file should have ALL records, not just the preview
 
    EXAMPLE OUTPUT FORMAT (CRITICAL - FOLLOW THIS EXACT FORMAT):
    {
-     "summary": "Here's the outgoing call report for yesterday (156 records):\n\n| Agent Name | Calls | Duration |\n|------------|-------|----------|\n| Manas | 227 | 00:45:30 |\n| Ayushi | 150 | 00:32:15 |\n| Raj | 120 | 00:28:00 |\n\n... (showing first 10 of 156 records)",
+     "summary": "Here's the outgoing call report for yesterday (156 records):\n\n| Agent Name | Calls | Duration |\n|------------|-------|----------|\n| Manas | 227 | 00:45:30 |\n| Ayushi | 150 | 00:32:15 |\n| Raj | 120 | 00:28:00 |\n\n... (showing first 5 of 156 records)",
      "report_path": "outputs/outgoing_calls_report.xlsx"
    }
 
@@ -295,7 +296,7 @@ WORKFLOW:
 
 3. Tool returns text with [DOWNLOAD:path] marker - extract the path from this marker
 4. Put extracted path in "report_path" field of your JSON response
-5. Create preview table (max 10 rows) for summary field ONLY (Excel has all rows)
+5. Create preview table (max 5 rows) for summary field ONLY (Excel has all rows)
 
 EXAMPLE TOOL CALL:
   convert_ejson_to_excel(
