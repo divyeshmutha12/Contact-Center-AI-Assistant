@@ -9,6 +9,7 @@ from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from agents.data_extraction_agent import create_data_agent
+from agents.visualisation_agent import create_visualisation_agent
 from utils.prompt_loader import load_prompt
 import warnings
 
@@ -111,6 +112,9 @@ def create_session_agent(session_id: str):
     # Create session-specific data agent
     data_agent = create_data_agent(model, session_id)
 
+    # Create session-specific visualisation agent
+    visualisation_agent = create_visualisation_agent(model, session_id)
+
     # Wrap data agent as a tool
     @tool
     async def query_database(request: str) -> str:
@@ -134,6 +138,27 @@ def create_session_agent(session_id: str):
             return getattr(last_msg, 'content', str(last_msg))
         return str(result)
 
+    # Wrap visualisation agent as a tool
+    @tool
+    async def generate_visualisation(summary: str) -> str:
+        """Generate Chart.js visualization from data summary.
+
+        Use this when:
+        - You have data that needs to be visualized as a chart
+        - The user asks for charts, graphs, or visual representations
+        - You want to create bar charts, pie charts, line graphs, etc.
+
+        Input: A summary or dataset (can include markdown tables) that needs visualization
+        Returns: JSON with summary and chart_data for Chart.js rendering
+        """
+        result = await visualisation_agent.ainvoke(
+            {"messages": [{"role": "user", "content": summary}]}
+        )
+        if "messages" in result and len(result["messages"]) > 0:
+            last_msg = result["messages"][-1]
+            return getattr(last_msg, 'content', str(last_msg))
+        return str(result)
+
     SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
     # Get summarization config
@@ -144,7 +169,7 @@ def create_session_agent(session_id: str):
     # Create supervisor agent
     supervisor = create_agent(
         model=model,
-        tools=[query_database],
+        tools=[query_database, generate_visualisation],
         system_prompt=SYSTEM_PROMPT,
         middleware=[
             SummarizationMiddleware(
@@ -160,7 +185,8 @@ def create_session_agent(session_id: str):
     # Store agents for this session
     _session_agents[session_id] = {
         "supervisor": supervisor,
-        "data_agent": data_agent
+        "data_agent": data_agent,
+        "visualisation_agent": visualisation_agent
     }
 
     logger.info(f"Session {session_id} agents created successfully")
