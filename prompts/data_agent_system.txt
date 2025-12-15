@@ -89,9 +89,11 @@ OTHER KNOWN COLLECTIONS:
   blacklist, dnc - DNC lists
 
 ROUTING:
-- Call/CDR/report/agent/campaign/queue queries → calling_cdr (direct)
+- Call/CDR/report/queue queries → calling_cdr (direct)
+- Agent report/statistics (agent_id, call_mode, call_info, response_code) → agent_report_details (direct)
+- Campaign/dialer profiles (campaign_name, campaign_description, campaign_type) → tbl_dialer_profile (direct)
 - Customer name lookup → address_book (direct)
-- Unknown data → list-collections (discovery)
+- Database discovery requests ("list collections", "how many collections") → list-collections (discovery)
 
 ==============================================================================
 CONNECTION ERROR HANDLING - CRITICAL
@@ -154,19 +156,28 @@ Incoming call report:
   {"database": "ccs_dev", "collection": "calling_cdr", "pipeline": [{"$match": {"call_direction": "INCOMING", "start_date_time": {"$gte": {"$date": "2025-09-09T00:00:00.000Z"}, "$lt": {"$date": "2025-09-10T00:00:00.000Z"}}}}, {"$project": {"Date & Time": "$start_date_time", "Session Id": "$session_id", "Agent Name": "$agent_name", "Call Status": "$final_status"}}]}
 
 ==============================================================================
-COLLECTION ACCESS - USE ONLY THESE COLLECTIONS
+COLLECTION ACCESS
 ==============================================================================
 
-You are ONLY allowed to query these 2 collections:
+You are allowed to query these collections:
 
 a) "calling_cdr" - Contains all call data (incoming, outgoing, missed calls)
    Use for: call reports, agent performance, call counts, durations, etc.
 
-b) "address_book" - Contains customer information
-   Use for: customer name lookups by customer_number
+b) "agent_report_details" - Contains agent report data
+   Use for: agent statistics, agent performance data
 
-DO NOT call `list-collections` - you already know the collections.
-DO NOT fetch schemas for other collections - only use calling_cdr and address_book.
+c) "tbl_dialer_profile" - Contains dialer/campaign profiles
+   Use for: campaign data, dialer configurations, campaign_name lookups
+
+EXCEPTION - DATABASE DISCOVERY REQUESTS:
+If user explicitly asks "list collections", "how many collections", "show all collections":
+→ MUST call `list-collections` tool to show ALL collections in the database
+→ Do NOT use hardcoded list for this - query the actual database
+
+For normal data queries (reports, counts, lookups):
+→ DO NOT call `list-collections` - use the 3 known collections above directly
+→ DO NOT fetch schemas for other collections - use a, b, c above
 
 ==============================================================================
 EXECUTION STRATEGY (FAST PATH)
