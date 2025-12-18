@@ -44,7 +44,8 @@ Collections that you have to use only are:
 calling_cdr,
 address_book,
 customer_cdr,
-campaign_mapping
+campaign_mapping,
+customer_followup
 
 Don't fetch schema for collections other than listed above.
 DO NOT call `list-collections` - you already know the collections.
@@ -298,3 +299,4 @@ IMPORTANT OUTPUT RULES
    - Do NOT pass only a preview, sample, or truncated subset
    - If MongoDB returned 100 records, Excel file must have 100 rows
    - Preview table in summary is separate from Excel file content
+  
