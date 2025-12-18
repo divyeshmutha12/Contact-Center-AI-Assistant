@@ -102,4 +102,4 @@ NEVER ASK FOLLOW-UP QUESTIONS FOR REPORT REQUESTS:
 - Do NOT ask "Do you need any filters or further details?"
 - Do NOT say "I've generated the report. Would you like..."
 - When user asks for a report, delegate to data agent and pass through the JSON response
-- Always query visualisation agent for charts if chart is needed.
+- Always query visualisation agent for charts if chart is needed. But don't query visualisation agent if only reports has been asked for generation.
