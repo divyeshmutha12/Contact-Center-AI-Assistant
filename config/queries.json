@@ -54,41 +54,47 @@
                 "$match": {}
             },
             {
-                "$project": {
-                    "Date & Time": "$start_date_time",
-                    "Session Id": "$session_id",
-                    "VMN": "$longcode",
-                    "Campaign Name": "$campaign_name",
-                    "Queue Name": "$queue_name",
-                    "Call Flow": "$call_flow_name",
-                    "Call Status": "$final_status",
-                    "Customer Number": "$customer_number",
-                    "Customer Name": "$address_book.customer_name",
-                    "Agent Number": "$agent_number",
-                    "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
-                    "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
-                    "Call Duration": "$duration",
-                    "Recording": "$recording_path",
-                    "Disposition": "$disposition_form_name",
-                    "Disconnected By": "$disconnected_by",
-                    "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
-                    "Conference Duration": "$conferenceDuration",
-                    "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
-                    "Total Mute Time": "$mute_duration",
-                    "Mute Time Detail": "$mute_time_detail",
-                    "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
-                    "Queue Wait Time": "$queue_wait_duration",
-                    "DTMFs": "$final_dtmf"
-                }
+            "$project": {
+                "Date & Time": "$start_date_time",
+                "Session Id": "$session_id",
+                "VMN": "$longcode",
+                "Campaign Name": "$campaign_name",
+                "Queue Name": "$queue_name",
+                "Call Flow": "$call_flow_name",
+
+                "Call Type": "$call_direction",
+                "Call Status": "$final_status",
+
+                "Customer Number": "$customer_number",
+                "Customer Name": "$address_book.customer_name",
+
+                "Agent Number": "$agent_number",
+                "Agent Name": "$agent_name",
+
+                "Agent Hangup Cause": "$agent_hangup_cause",
+                "Customer Hangup Cause": "$customer_hangup_cause",
+
+                "Agent Ringing Duration": "$agent_ringing_duration",
+                "Customer Ringing Duration": "$customer_ringing_duration",
+
+                "Call Duration": "$duration",
+                "IVR Duration": "$ivr_duration",
+                "Queue Wait Time": "$queue_wait_duration",
+
+                "Total Hold Time": "$on_call_hold_time",
+                "Hold Time Detail": "$hold_time_detail",
+
+                "Total Mute Time": "$mute_duration",
+                "Mute Time Detail": "$mute_time_detail",
+
+                "Recording": "$recording_path",
+                "Disposition": "$disposition_form_name",
+                "Disconnected By": "$disconnected_by",
+                "DTMFs": "$final_dtmf",
+                "Remark": "$remarks"
+            }
             },
+
             {
                 "$group": {
                     "_id": "$_id",
@@ -168,33 +174,43 @@
                     "Date & Time": "$start_date_time",
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
+
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
+
                     "Queue Name": "$queue_name",
+
                     "Call Flow": "$call_flow_name",
+                    "Call Type": "$call_direction",
                     "Call Status": "$final_status",
+
                     "Customer Number": "$customer_number",
                     "Customer Name": "$address_book.customer_name",
+
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
+
                     "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
                     "Recording": "$recording_path",
+
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
+
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
                     "Wrapup Time": "$after_call_wrapup_time",
                     "Conference Duration": "$conferenceDuration",
+
                     "Total Hold Time": "$on_call_hold_time",
                     "Hold Time Detail": "$hold_time_detail",
+
                     "Total Mute Time": "$mute_duration",
                     "Mute Time Detail": "$mute_time_detail",
+
                     "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
+                    "Agent Hangup Cause": "$agent_hangup_cause",
+                    "Customer Hangup Cause": "$customer_hangup_cause",
+
                     "Queue Wait Time": "$queue_wait_duration",
                     "DTMFs": "$final_dtmf"
                 }
@@ -279,34 +295,25 @@
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
                     "Queue Name": "$queue_name",
                     "Call Flow": "$call_flow_name",
                     "Call Status": "$final_status",
+                    "Call Type": "$call_direction",
                     "Customer Number": "$customer_number",
                     "Customer Name": "$address_book.customer_name",
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
                     "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
                     "Recording": "$recording_path",
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
-                    "Conference Duration": "$conferenceDuration",
-                    "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
-                    "Total Mute Time": "$mute_duration",
-                    "Mute Time Detail": "$mute_time_detail",
+                    "Wrapup Time": "$after_call_wrapup_time",       
                     "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
-                    "Queue Wait Time": "$queue_wait_duration",
-                    "DTMFs": "$final_dtmf"
+                    "Agent Hangup Cause": "$agent_hangup_cause",
+                    "Customer Hangup Cause":"$customer_hangup_cause"
                 }
             },
             {
@@ -386,34 +393,24 @@
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
                     "Queue Name": "$queue_name",
+                    "Call Type": "$call_direction",
                     "Call Flow": "$call_flow_name",
                     "Call Status": "$final_status",
                     "Customer Number": "$customer_number",
                     "Customer Name": "$address_book.customer_name",
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
                     "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
                     "Recording": "$recording_path",
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
-                    "Conference Duration": "$conferenceDuration",
-                    "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
-                    "Total Mute Time": "$mute_duration",
-                    "Mute Time Detail": "$mute_time_detail",
                     "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
-                    "Queue Wait Time": "$queue_wait_duration",
-                    "DTMFs": "$final_dtmf"
+                    "Agent Hangup Cause": "$agent_hangup_cause",
+                    "Customer Hangup Cause":"$customer_hangup_cause"
                 }
             },
             {
@@ -493,36 +490,28 @@
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
                     "Queue Name": "$queue_name",
                     "Call Flow": "$call_flow_name",
                     "Call Status": "$final_status",
+                    "Call Type": "$call_direction",
                     "Customer Number": "$customer_number",
                     "Customer Name": "$address_book.customer_name",
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
                     "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
                     "Recording": "$recording_path",
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
-                    "Conference Duration": "$conferenceStatus",
-                    "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
                     "Total Mute Time": "$mute_duration",
                     "Mute Time Detail": "$mute_time_detail",
                     "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
-                    "Queue Wait Time": "$queue_wait_duration",
-                    "DTMFs": "$final_dtmf"
-                }
-            },
+                    "Agent Hangup Cause": "$agent_hangup_cause",
+                    "Customer Hangup Cause":"$customer_hangup_cause"
+            }
+          },
             {
                 "$group": {
                     "_id": "$_id",
@@ -531,7 +520,8 @@
             },
             {
                 "$replaceRoot": {"newRoot": "$doc"}
-            },
+            },               
+
             {
                 "$sort": {"Date & Time": -1}
             },
@@ -602,6 +592,7 @@
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
                     "Queue Name": "$queue_name",
                     "Call Flow": "$call_flow_name",
                     "Call Status": "$final_status",
@@ -609,27 +600,17 @@
                     "Customer Name": "$address_book.customer_name",
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
-                    "Customer Ringing Duration": "$customer_ringing_duration",
-                    "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
                     "Recording": "$recording_path",
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
-                    "Conference Duration": "$conferenceStatus",
+                    "Conference Status": "$conferenceStatus",
                     "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
                     "Total Mute Time": "$mute_duration",
-                    "Mute Time Detail": "$mute_time_detail",
-                    "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
+                    "Agent Hangup Cause": "$agent_hangup_cause",
                     "Queue Wait Time": "$agent_ringing_duration",
-                    "DTMFs": "$final_dtmf"
+                    "Transfer Status":"$transferStatus"
                 }
             },
             {
@@ -712,35 +693,23 @@
                     "Session Id": "$session_id",
                     "VMN": "$longcode",
                     "Campaign Name": "$campaign_name",
+                    "Campaign Type": "$campaign_type",
                     "Queue Name": "$queue_name",
                     "Call Flow": "$call_flow_name",
                     "Call Status": "$final_status",
+                    "Call Type": "$call_direction",
                     "Customer Number": "$customer_number",
                     "Customer Name": "$address_book.customer_name",
                     "Agent Number": "$agent_number",
                     "Agent Name": "$agent_name",
-                    "Details": "$remarks",
-                    "Agent Ring Time": "$agent_ringing_duration",
-                    "Customer Ringing Duration": "$customer_ringing_duration",
                     "Hold Time": "$on_call_hold_time",
                     "Call Duration": "$duration",
-                    "Recording": "$recording_path",
-                    "Disposition": "$disposition_form_name",
-                    "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "IVR Duration": "$ivr_duration",
-                    "Wrapup Time": "$after_call_wrapup_time",
                     "Conference Status": "$conferenceStatus",
                     "Transfer Status": "$transferStatus",
-                    "Total Hold Time": "$on_call_hold_time",
-                    "Hold Time Detail": "$hold_time_detail",
                     "Total Mute Time": "$mute_duration",
                     "Mute Time Detail": "$mute_time_detail",
-                    "Agent Ringing Duration": "$agent_ringing_duration",
-                    "Hangup Cause": "$agent_hangup_cause",
-                    "Hangup Cause Code": "$agent_hangup_code",
-                    "Queue Wait Time": "$agent_ringing_duration",
-                    "DTMFs": "$final_dtmf"
+                    "Queue Wait Time": "$agent_ringing_duration"
                 }
             },
             {
