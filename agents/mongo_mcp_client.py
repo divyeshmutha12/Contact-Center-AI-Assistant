@@ -23,6 +23,7 @@ async def init_shared_mcp_tools() -> List[BaseTool]:
     """
     Initialize MCP tools once at server startup.
     These tools are shared across all session agents.
+    Loads both MongoDB and MariaDB MCP tools.
     """
     global _shared_mcp_client, _shared_mcp_tools
 
@@ -31,7 +32,7 @@ async def init_shared_mcp_tools() -> List[BaseTool]:
 
     logger.info("Initializing shared MCP tools (one-time startup)...")
     _shared_mcp_client = MongoMCPClient()
-    _shared_mcp_tools = await _shared_mcp_client.get_tools()
+    _shared_mcp_tools = await _shared_mcp_client.get_all_tools()
     logger.info(f"Shared MCP tools initialized: {len(_shared_mcp_tools)} tools")
     return _shared_mcp_tools
 
@@ -45,13 +46,13 @@ def get_shared_mcp_tools() -> List[BaseTool]:
 
 class MongoMCPClient:
     """
-    Official MongoDB MCP client wrapper for LangChain agents.
+    Multi-database MCP client wrapper for LangChain agents.
 
     Responsibilities:
-    - Load MCP server config (config/mcp.json)
+    - Load MCP server config (config/mcp.json) for all servers
     - Allow environment overrides for transport + URL
     - Create MultiServerMCPClient
-    - Fetch and cache LangChain-compatible tools
+    - Fetch and cache LangChain-compatible tools from MongoDB, MariaDB, etc.
     """
 
     def __init__(
@@ -63,6 +64,7 @@ class MongoMCPClient:
         self.server_name = server_name
         self.client: Optional[MultiServerMCPClient] = None
         self.tools: Optional[List[BaseTool]] = None
+        self.all_tools: Optional[List[BaseTool]] = None
 
         logger.info("MongoMCPClient initialized using LangChain MCP adapter")
 
@@ -145,6 +147,74 @@ class MongoMCPClient:
         except Exception as e:
             logger.error("Failed to load tools from MCP", exc_info=True)
             raise RuntimeError(f"Failed to get tools from MCP server: {e}") from e
+
+    # -------------------------------------------------------------
+    # FETCH ALL TOOLS FROM ALL SERVERS
+    # -------------------------------------------------------------
+    async def get_all_tools(self) -> List[BaseTool]:
+        """
+        Returns LangChain BaseTool objects from ALL MCP servers in config.
+        Tools are prefixed with server name to differentiate them (e.g., mongodb_find, mariadb_query).
+        Tools are cached after first load.
+        """
+        if self.all_tools is not None:
+            logger.info("Returning cached MCP tools from all servers")
+            return self.all_tools
+
+        # Load full config
+        if not os.path.exists(self.config_path):
+            msg = f"MCP config file not found: {self.config_path}"
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
+        logger.info(f"Loading MCP config from: {self.config_path}")
+        with open(self.config_path, "r") as f:
+            config = json.load(f)
+
+        if "servers" not in config:
+            raise ValueError("Invalid MCP config: missing 'servers'")
+
+        # Process each server
+        all_server_configs = {}
+        for server_name, server_cfg in config["servers"].items():
+            # Allow environment overrides
+            env_transport_key = f"{server_name.upper()}_MCP_TRANSPORT"
+            env_url_key = f"{server_name.upper()}_MCP_URL"
+
+            env_transport = os.getenv(env_transport_key)
+            env_url = os.getenv(env_url_key)
+
+            if env_transport:
+                server_cfg["transport"] = env_transport
+            if env_url:
+                server_cfg["url"] = env_url
+
+            # Default to streamable_http if not set
+            server_cfg.setdefault("transport", "streamable_http")
+
+            logger.info(
+                f"MCP server '{server_name}' => transport={server_cfg.get('transport')} "
+                f"url={server_cfg.get('url')}"
+            )
+
+            all_server_configs[server_name] = server_cfg
+
+        logger.info(f"Creating MultiServerMCPClient with {len(all_server_configs)} servers...")
+        try:
+            self.client = MultiServerMCPClient(all_server_configs)
+
+            logger.info("Requesting tools from all MCP servers...")
+            self.all_tools = await self.client.get_tools()
+
+            logger.info(f"Successfully retrieved {len(self.all_tools)} tools from all servers:")
+            for tool in self.all_tools:
+                logger.info(f"  • {tool.name}")
+
+            return self.all_tools
+
+        except Exception as e:
+            logger.error("Failed to load tools from MCP servers", exc_info=True)
+            raise RuntimeError(f"Failed to get tools from MCP servers: {e}") from e
 
     # -------------------------------------------------------------
     # CLEANUP
