@@ -510,8 +510,8 @@
                     "Agent Ringing Duration": "$agent_ringing_duration",
                     "Agent Hangup Cause": "$agent_hangup_cause",
                     "Customer Hangup Cause":"$customer_hangup_cause"
-            }
-          },
+                }
+            },
             {
                 "$group": {
                     "_id": "$_id",
