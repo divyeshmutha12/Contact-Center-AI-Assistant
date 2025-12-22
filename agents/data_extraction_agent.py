@@ -10,6 +10,7 @@ from utils.prompt_loader import load_prompt
 from agents.mongo_mcp_client import get_shared_mcp_tools
 from tools.excel_converter import create_excel_converter_tool
 from tools.mongodb_query_tool import create_mongodb_query_tool
+from tools.mariadb_query_tool import create_mariadb_query_tool
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -54,9 +55,10 @@ def create_data_agent(model: ChatOpenAI, session_id: str):
     # Create session-specific tools
     excel_tool = create_excel_converter_tool(session_id, session_folder)
     mongodb_query_tool = create_mongodb_query_tool(session_id, session_folder)
+    mariadb_query_tool = create_mariadb_query_tool(session_id, session_folder)
 
     # Combine MCP tools with custom tools
-    tools = mcp_tools + [excel_tool, mongodb_query_tool]
+    tools = mcp_tools + [excel_tool, mongodb_query_tool, mariadb_query_tool]
     logger.info(f"Total tools: {len(tools)}")
 
     SYSTEM_PROMPT = load_prompt("prompts/data_agent_system.txt")

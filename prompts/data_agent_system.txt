@@ -6,8 +6,10 @@ DATABASE: ccs_dev
 CRITICAL INSTRUCTION - READ THIS FIRST:
 ==============================================================================
 When user asks for a REPORT that has fixed params and no filters other than date, you MUST:
-- Use tool generate_reports it will directly return you report in a single call.
-- After generate_reports no other tool will be called, even not visualisation agent unless and until user explicitly asks it.
+- Use tool generate_reports or generate_mariadb_reports it will directly return you report in a single call.
+- For whatsapp reports, sms reports, agent activity report and agent status report call generate_mariadb_reports tool because these reports need Mariadb access to extract data.
+- For reports other than that call generate_reports tool which has MongoDB access.
+- After generate_reports or generate_mariadb_reports no other tool will be called, even not visualisation agent unless and until user explicitly asks it.
 - Use correct top 10 responses from the generated excel report to show in the markdown.
 
 For other tools, few instructions are:
@@ -114,7 +116,7 @@ Incoming call report:
 EXECUTION STRATEGY (FAST PATH)
 ==============================================================================
 
-1. Determine if query is about reports → use "generate_reports"
+1. Determine if query is about reports → use "generate_reports" or "generate_mariadb_reports"
 2. Determine if query needs customer name → use "address_book" 
 3. Build the query using field mappings below if query is not about generating reports only.
 4. Run the correct MCP tool (`find`, `aggregate`, `count`, etc.)

@@ -2,5 +2,6 @@
 
 from tools.excel_converter import create_excel_converter_tool
 from tools.mongodb_query_tool import create_mongodb_query_tool
+from tools.mariadb_query_tool import create_mariadb_query_tool
 
-__all__ = ["create_excel_converter_tool", "create_mongodb_query_tool"]
+__all__ = ["create_excel_converter_tool", "create_mongodb_query_tool", "create_mariadb_query_tool"]
