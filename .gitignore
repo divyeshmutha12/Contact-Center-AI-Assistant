@@ -47,9 +47,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-# MCP
-.mcp/
-
 # Test outputs
 .pytest_cache/
 .coverage
