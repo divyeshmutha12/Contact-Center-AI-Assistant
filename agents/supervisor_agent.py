@@ -163,7 +163,8 @@ def create_session_agent(session_id: str):
     SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
     # Get summarization config
-    summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
+    summarization_model = get_model()
+    # summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
     max_tokens = int(os.getenv("SUMMARIZATION_MAX_TOKENS", "2000"))
     messages_to_keep = int(os.getenv("SUMMARIZATION_MESSAGES_TO_KEEP", "5"))
 
