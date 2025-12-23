@@ -851,7 +851,7 @@
             },
             {
                 "$project": {
-                    "Reminder Date & Time": "$reminder_date_time",
+                    "Date & Time": "$start_date_time",
                     "Session Id": "$session_id",
                     "Campaign Name": "$campaign_name",
                     "Campaign Type": "$campaign_type",
@@ -860,9 +860,10 @@
                     "Customer Number": "$customer_number",
                     "Agent Name": "$agent_name",
                     "Agent Number": "$agent_number",
-                    "Call Duration": "$duration",
                     "Disconnected By": "$disconnected_by",
-                    "Remark": "$remarks"
+                    "Disposition": "$disposition_form_name",
+                    "Remark": "$remarks",
+                    "Customer Name": "$address_book.customer_name"
                 }
             },
             {
