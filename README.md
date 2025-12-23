@@ -456,6 +456,7 @@ Contact_Center_Project/
 ### Database
 - **MongoDB 7.0+** - NoSQL database
 - **Collections**: calling_cdr, address_book
+- **MariaDB**: - NoSQL database
 
 ---
 
