@@ -62,6 +62,7 @@ logger.info("Supervisor agent module loaded")
 
 # Model configuration
 model_name = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+model_url = os.getenv("ENDPOINT", None)
 temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
 api_key = os.getenv("OPENAI_API_KEY")
 
@@ -91,7 +92,7 @@ def get_model():
     global _model
     if _model is None:
         logger.info(f"Creating OpenAI model: {model_name}")
-        _model = ChatOpenAI(model=model_name)
+        _model = ChatOpenAI(model=model_name, base_url=model_url)
     return _model
 
 
@@ -162,7 +163,8 @@ def create_session_agent(session_id: str):
     SYSTEM_PROMPT = load_prompt("prompts/supervisor_system.txt")
 
     # Get summarization config
-    summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
+    summarization_model = get_model()
+    # summarization_model = os.getenv("SUMMARIZATION_MODEL", "gpt-5-mini")
     max_tokens = int(os.getenv("SUMMARIZATION_MAX_TOKENS", "2000"))
     messages_to_keep = int(os.getenv("SUMMARIZATION_MESSAGES_TO_KEEP", "5"))
 
