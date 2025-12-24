@@ -57,7 +57,7 @@
             "$project": {
                 "Date & Time": "$start_date_time",
                 "Session Id": "$session_id",
-                "VMN": "$longcode",
+                "Virtual Number": "$longcode",
                 "Campaign Name": "$campaign_name",
                 "Queue Name": "$queue_name",
                 "Call Flow": "$call_flow_name",
@@ -90,8 +90,10 @@
                 "Recording": "$recording_path",
                 "Disposition": "$disposition_form_name",
                 "Disconnected By": "$disconnected_by",
-                "DTMFs": "$final_dtmf",
-                "Remark": "$remarks"
+                "DTMFS": "$final_dtmf",
+                "Remark": "$remarks",
+                "Wrapup Time": "$after_call_wrapup_time",
+                "Conference Duration": "$conferenceDuration"
             }
             },
 
@@ -173,7 +175,7 @@
                 "$project": {
                     "Date & Time": "$start_date_time",
                     "Session Id": "$session_id",
-                    "VMN": "$longcode",
+                    "Virtual Number": "$longcode",
 
                     "Campaign Name": "$campaign_name",
                     "Campaign Type": "$campaign_type",
@@ -212,7 +214,7 @@
                     "Customer Hangup Cause": "$customer_hangup_cause",
 
                     "Queue Wait Time": "$queue_wait_duration",
-                    "DTMFs": "$final_dtmf"
+                    "DTMFS": "$final_dtmf"
                 }
             },
             {
@@ -310,7 +312,7 @@
                     "Disposition": "$disposition_form_name",
                     "Disconnected By": "$disconnected_by",
                     "Remark": "$remarks",
-                    "Wrapup Time": "$after_call_wrapup_time",       
+                    "Wrapup Time": "$after_call_wrapup_time",
                     "Agent Ringing Duration": "$agent_ringing_duration",
                     "Agent Hangup Cause": "$agent_hangup_cause",
                     "Customer Hangup Cause":"$customer_hangup_cause"
@@ -520,7 +522,7 @@
             },
             {
                 "$replaceRoot": {"newRoot": "$doc"}
-            },               
+            },
 
             {
                 "$sort": {"Date & Time": -1}
@@ -1015,22 +1017,19 @@
             {
                 "$project": {
                     "_id": 0,
-                    "File Id": "$_id",
-                    "File Name": "$file_name",
                     "Campaign Name": "$campaign_name",
-                    "Campaign Id": "$campaign_id",
-                    "Campaign Type": "$Campaign Type",
-                    "Total Uploaded Count": "$Total Uploaded Count",
-                    "Total Records": "$total_count",
-                    "Total Retry Count": "$total_retry_count",
-                    "Dialable Count": "$dialable_count",
-                    "Invalid Count": "$Invalid Count",
-                    "Duplicate Count": "$Duplicate Count",
-                    "DNC Count": "$DNC Count",
-                    "DND Count": "$DND Count",
-                    "Call Status": "$statuses",
-                    "File Status": "$File Status",
-                    "File Insert Date & Time": "$File Insert Date & Time"
+                    "Campaign Type": "$campaign_type",
+                    "Total Lead Count": "$total_count",
+                    "Invalid Count": "$invalid_count",
+                    "Duplicate Count": "$duplicate_count",
+                    "DNC Count": "$dnc_count",
+                    "Uploaded List Name": "$file_name",
+                    "Uploaded Date Time": "$insert_date_time",
+                    "Dialable Lead Count": "$valid_count",
+                    "Dialed Lead Count": "$executed",
+                    "To Be Dialed Count": "$pending_count",
+                    "DND Count": "$dnd_count",
+                    "List Status": "$status"
                 }
             },
             {
